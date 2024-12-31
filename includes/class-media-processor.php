@@ -72,7 +72,13 @@ class WP_Media_Organiser_Processor
         }
     }
 
-    private function get_post_media_files($post_id)
+    /**
+     * Get all media files associated with a post
+     *
+     * @param int $post_id The post ID
+     * @return array Array of media file paths indexed by attachment ID
+     */
+    public function get_post_media_files($post_id)
     {
         $media_files = array();
 
@@ -108,11 +114,19 @@ class WP_Media_Organiser_Processor
         return $media_files;
     }
 
-    private function get_new_file_path($attachment_id, $post_id)
+    /**
+     * Get the new file path for a media file
+     *
+     * @param int $attachment_id The attachment ID
+     * @param int $post_id The post ID
+     * @param WP_Post|null $temp_post Optional temporary post object for path generation
+     * @return string|false The new file path or false if it cannot be generated
+     */
+    public function get_new_file_path($attachment_id, $post_id, $temp_post = null)
     {
         $upload_dir = wp_upload_dir();
         $file_info = pathinfo(get_attached_file($attachment_id));
-        $post = get_post($post_id);
+        $post = $temp_post ?: get_post($post_id);
 
         $path_parts = array();
 

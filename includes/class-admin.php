@@ -41,7 +41,7 @@ class WP_Media_Organiser_Admin
         // Initialize processor
         $this->processor = new WP_Media_Organiser_Processor($this->settings);
 
-        // Add bulk actions for all valid post types
+        // Add bulk actions
         add_filter('bulk_actions-edit-post', array($this, 'register_bulk_actions'));
         add_filter('bulk_actions-edit-page', array($this, 'register_bulk_actions'));
         add_filter('handle_bulk_actions-edit-post', array($this, 'handle_bulk_action'), 10, 3);
@@ -50,9 +50,14 @@ class WP_Media_Organiser_Admin
         // Add admin notices
         add_action('admin_notices', array($this, 'bulk_action_admin_notice'));
         add_action('admin_notices', array($this, 'post_update_admin_notice'));
+        add_action('edit_form_after_title', array($this, 'add_preview_notice'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_preview_scripts'));
 
         // Handle post updates
         add_action('post_updated', array($this, 'handle_post_update'), 10, 3);
+
+        // Add AJAX handlers
+        add_action('wp_ajax_get_preview_paths', array($this, 'ajax_get_preview_paths'));
 
         $this->logger->log("Admin class initialization complete", 'debug');
     }
@@ -339,8 +344,8 @@ class WP_Media_Organiser_Admin
             } elseif (preg_match('/^\d{2}$/', $part)) {
                 $colored_path .= $part . '/';
             }
-            // Handle post ID
-            elseif (is_numeric($part)) {
+            // Handle post identifier (ID or slug)
+            elseif (is_numeric($part) || ($this->settings->get_setting('post_identifier') === 'slug' && !preg_match('/\.(jpg|jpeg|png|gif|webp|mp4|mp3|pdf)$/i', $part))) {
                 $colored_path .= sprintf('<span class="path-component path-post-identifier">%s</span>/', $part);
             }
             // The last part is the filename
@@ -393,5 +398,153 @@ class WP_Media_Organiser_Admin
 
         // Store results in a transient specific to this post
         set_transient('wp_media_organiser_post_' . $post_id, $results, 30);
+    }
+
+    /**
+     * Add the preview notice container to the post edit screen
+     */
+    public function add_preview_notice()
+    {
+        $screen = get_current_screen();
+        if ($screen->base !== 'post') {
+            return;
+        }
+
+        $post_id = get_the_ID();
+        if (!$post_id) {
+            return;
+        }
+
+        // Get current media files for this post
+        $media_files = $this->processor->get_post_media_files($post_id);
+        if (empty($media_files)) {
+            return;
+        }
+
+        echo '<div id="media-organiser-preview" class="notice notice-warning is-dismissible" style="display:none;">';
+        echo '<style>
+            .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
+            .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
+            .media-status-item .status-text { flex: 1; padding-bottom: 8px; }
+            .status-dot { margin-right: 5px; }
+            .status-dot-preview { color: #ffb900; }
+            .summary-counts span { margin-right: 15px; }
+            .path-component { padding: 2px 4px; border-radius: 2px; }
+            .path-post-type { background-color: #ffebee; color: #c62828; }
+            .path-taxonomy { background-color: #e8f5e9; color: #2e7d32; }
+            .path-term { background-color: #e3f2fd; color: #1565c0; }
+            .path-post-identifier { background-color: #fff3e0; color: #ef6c00; }
+            code {
+                background: #f5f5f5 !important;
+                margin: 0 !important;
+                display: inline-block !important;
+                border-radius: 4px !important;
+            }
+        </style>';
+        echo '<p><strong>Preview: The following media files will be moved when you save:</strong></p>';
+        echo '<ul style="margin-left: 20px;">';
+
+        foreach ($media_files as $attachment_id => $current_path) {
+            $attachment = get_post($attachment_id);
+            $thumbnail = wp_get_attachment_image($attachment_id, array(36, 36), true);
+            echo sprintf(
+                '<li class="media-status-item" data-media-id="%d"><div>%s</div><span class="status-text"><span class="status-dot status-dot-preview">●</span>Media ID <a href="%s">%d</a> ("%s"): Will move from <code><del>%s</del></code> to <code class="preview-path-%d">%s</code></span></li>',
+                $attachment_id,
+                $thumbnail,
+                get_edit_post_link($attachment_id),
+                $attachment_id,
+                $attachment->post_title,
+                $this->normalize_path($current_path),
+                $attachment_id,
+                $this->color_code_path_components($this->processor->get_new_file_path($attachment_id, $post_id))
+            );
+        }
+
+        echo '</ul></div>';
+
+        // Add data for JavaScript
+        wp_localize_script('wp-media-organiser-preview', 'wpMediaOrganiser', array(
+            'postId' => $post_id,
+            'settings' => array(
+                'taxonomyName' => $this->settings->get_setting('taxonomy_name'),
+                'postIdentifier' => $this->settings->get_setting('post_identifier'),
+            ),
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('wp_media_organiser_preview'),
+        ));
+    }
+
+    /**
+     * Enqueue scripts for the preview functionality
+     */
+    public function enqueue_preview_scripts($hook)
+    {
+        if ($hook !== 'post.php' && $hook !== 'post-new.php') {
+            return;
+        }
+
+        wp_enqueue_script(
+            'wp-media-organiser-preview',
+            $this->plugin_url . 'assets/js/preview.js',
+            array('jquery'),
+            '1.0.0',
+            true
+        );
+    }
+
+    /**
+     * AJAX handler for getting preview paths
+     */
+    public function ajax_get_preview_paths()
+    {
+        check_ajax_referer('wp_media_organiser_preview', 'nonce');
+
+        $post_id = intval($_POST['post_id']);
+        if (!$post_id) {
+            wp_send_json_error('Invalid post ID');
+        }
+
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error('Post not found');
+        }
+
+        // Create a temporary copy of the post for path generation
+        $temp_post = clone $post;
+
+        // If a post slug was provided and slug is used as identifier
+        if (isset($_POST['post_slug']) && $this->settings->get_setting('post_identifier') === 'slug') {
+            $temp_post->post_name = sanitize_title($_POST['post_slug']);
+        }
+
+        // If taxonomy is enabled in settings, handle term selection/deselection
+        if ($this->settings->get_setting('taxonomy_name')) {
+            $taxonomy_name = $this->settings->get_setting('taxonomy_name');
+            if (isset($_POST['taxonomy_term'])) {
+                if ($_POST['taxonomy_term'] === '') {
+                    // Clear terms if explicitly set to empty
+                    wp_set_object_terms($post_id, array(), $taxonomy_name);
+                } elseif (is_numeric($_POST['taxonomy_term'])) {
+                    // Set term if a valid term ID is provided
+                    wp_set_object_terms($post_id, intval($_POST['taxonomy_term']), $taxonomy_name);
+                }
+            }
+        }
+
+        $media_files = $this->processor->get_post_media_files($post_id);
+        if (empty($media_files)) {
+            wp_send_json_error('No media files found');
+        }
+
+        $preview_paths = array();
+        foreach ($media_files as $attachment_id => $current_path) {
+            // Pass the temporary post to get_new_file_path
+            $new_path = $this->processor->get_new_file_path($attachment_id, $post_id, $temp_post);
+            if ($new_path) {
+                $preview_paths[$attachment_id] = $this->color_code_path_components($new_path);
+            }
+        }
+
+        wp_send_json_success($preview_paths);
     }
 }
