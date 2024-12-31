@@ -97,6 +97,14 @@ class WP_Media_Organiser_Admin
     public function bulk_action_admin_notice()
     {
         if (!empty($_REQUEST['bulk_reorganize_media'])) {
+            // Check if all required parameters are present
+            $required_params = array('processed', 'success', 'already_organized', 'failed', 'skipped');
+            foreach ($required_params as $param) {
+                if (!isset($_REQUEST[$param])) {
+                    return; // Exit if any required parameter is missing
+                }
+            }
+
             $processed = intval($_REQUEST['processed']);
             $success = intval($_REQUEST['success']);
             $already_organized = intval($_REQUEST['already_organized']);
@@ -133,13 +141,29 @@ class WP_Media_Organiser_Admin
 
             if (!empty($post_messages)) {
                 foreach ($post_messages as $post_message) {
-                    $output .= sprintf('<p><strong>%s</strong></p>', esc_html($post_message['title']));
+                    // Extract post ID from the title using regex
+                    if (preg_match('/Post ID (\d+):/', $post_message['title'], $matches)) {
+                        $post_id = $matches[1];
+                        $post_title = preg_replace('/^Post ID \d+: /', '', $post_message['title']);
+                        $post_edit_link = get_edit_post_link($post_id);
+                        $output .= sprintf(
+                            '<p><strong>Post ID <a href="%s">%d</a>: %s</strong></p>',
+                            esc_url($post_edit_link),
+                            $post_id,
+                            esc_html($post_title)
+                        );
+                    } else {
+                        $output .= sprintf('<p><strong>%s</strong></p>', esc_html($post_message['title']));
+                    }
+
                     if (!empty($post_message['items'])) {
                         $output .= '<ul style="margin-left: 20px;">';
                         foreach ($post_message['items'] as $item) {
                             // Extract media ID from the message using regex
-                            if (preg_match('/Media ID (\d+)/', $item, $matches)) {
+                            if (preg_match('/Media ID (\d+) \("([^"]+)"\)/', $item, $matches)) {
                                 $media_id = $matches[1];
+                                $media_title = $matches[2];
+                                $media_edit_link = get_edit_post_link($media_id);
                                 $thumbnail = wp_get_attachment_image($media_id, array(36, 36), true);
 
                                 // Determine status type and apply appropriate styling
@@ -150,11 +174,18 @@ class WP_Media_Organiser_Admin
                                     $dot_class = 'status-dot-failed';
                                 }
 
+                                // Replace the original "Media ID X" text with a linked version
+                                $linked_item = preg_replace(
+                                    '/Media ID \d+ \("([^"]+)"\)/',
+                                    sprintf('Media ID <a href="%s">%d</a> ("%s")', esc_url($media_edit_link), $media_id, $media_title),
+                                    $item
+                                );
+
                                 $output .= sprintf(
                                     '<li class="media-status-item"><div>%s</div><span class="status-text"><span class="status-dot %s">●</span>%s</span></li>',
                                     $thumbnail,
                                     $dot_class,
-                                    wp_kses($item, array('code' => array()))
+                                    wp_kses($linked_item, array('code' => array(), 'a' => array('href' => array())))
                                 );
                             } else {
                                 // For messages without media ID (like errors)
