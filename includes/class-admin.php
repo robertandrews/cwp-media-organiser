@@ -110,11 +110,20 @@ class WP_Media_Organiser_Admin
                 '<div class="notice notice-info is-dismissible">' .
                 '<style>
                     .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
-                    .media-status-item img { width: 30px; height: 30px; object-fit: cover; margin-right: 10px; }
-                    .media-status-item .status-text { flex: 1; padding-top: 2px; }
+                    .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
+                    .media-status-item .status-text { flex: 1; padding-top: 8px; }
+                    .status-dot { margin-right: 5px; }
+                    .status-dot-moved { color: #46b450; }
+                    .status-dot-existing { color: #ffb900; }
+                    .status-dot-failed { color: #dc3232; }
+                    .status-dot-skipped { color: #888888; }
+                    .summary-counts span { margin-right: 15px; }
                 </style>' .
-                '<p>' .
-                __('Media organization check completed. Files moved: %1$d, Already organized: %2$d, Failed: %3$d, Skipped: %4$d', 'wp-media-organiser') .
+                '<p class="summary-counts">' .
+                '<span><span class="status-dot status-dot-moved">●</span>Files moved: %1$d</span>' .
+                '<span><span class="status-dot status-dot-existing">●</span>Already organized: %2$d</span>' .
+                '<span><span class="status-dot status-dot-failed">●</span>Failed: %3$d</span>' .
+                '<span><span class="status-dot status-dot-skipped">●</span>Skipped: %4$d</span>' .
                 '</p>',
                 $success,
                 $already_organized,
@@ -131,15 +140,28 @@ class WP_Media_Organiser_Admin
                             // Extract media ID from the message using regex
                             if (preg_match('/Media ID (\d+)/', $item, $matches)) {
                                 $media_id = $matches[1];
-                                $thumbnail = wp_get_attachment_image($media_id, array(30, 30), true);
+                                $thumbnail = wp_get_attachment_image($media_id, array(36, 36), true);
+
+                                // Determine status type and apply appropriate styling
+                                $dot_class = 'status-dot-existing';
+                                if (strpos($item, 'Moved from') !== false) {
+                                    $dot_class = 'status-dot-moved';
+                                } elseif (strpos($item, 'Cannot generate') !== false || strpos($item, 'Error:') !== false) {
+                                    $dot_class = 'status-dot-failed';
+                                }
+
                                 $output .= sprintf(
-                                    '<li class="media-status-item">%s<span class="status-text">%s</span></li>',
+                                    '<li class="media-status-item"><div>%s</div><span class="status-text"><span class="status-dot %s">●</span>%s</span></li>',
                                     $thumbnail,
+                                    $dot_class,
                                     wp_kses($item, array('code' => array()))
                                 );
                             } else {
                                 // For messages without media ID (like errors)
-                                $output .= sprintf('<li>%s</li>', wp_kses($item, array('code' => array())));
+                                $output .= sprintf(
+                                    '<li><span class="status-text"><span class="status-dot status-dot-failed">●</span>%s</span></li>',
+                                    wp_kses($item, array('code' => array()))
+                                );
                             }
                         }
                         $output .= '</ul>';
