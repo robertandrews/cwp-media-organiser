@@ -196,6 +196,7 @@ class WP_Media_Organiser
             array(
                 'currentTaxonomy' => $this->get_setting('taxonomy_name'),
                 'postTypes' => $post_types,
+                'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
             )
         );
     }
@@ -297,6 +298,23 @@ class WP_Media_Organiser
                                 <option value=""><?php _e('None', 'wp-media-organiser');?></option>
                             </select>
                             <p class="description"><?php _e('Select a taxonomy to include in the file path', 'wp-media-organiser');?></p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <?php _e('Date Folders', 'wp-media-organiser');?>
+                        </th>
+                        <td>
+                            <p class="description">
+                                <?php
+printf(
+            __('Date-based folders (YYYY/MM) are controlled in %sMedia Settings%s', 'wp-media-organiser'),
+            '<a href="' . admin_url('options-media.php') . '">',
+            '</a>'
+        );
+        ?>
+                            </p>
                         </td>
                     </tr>
 
@@ -411,10 +429,12 @@ class WP_Media_Organiser
             }
         }
 
-        // Add year/month structure (from WordPress settings)
-        $time = strtotime($post->post_date);
-        $path_parts[] = date('Y', $time);
-        $path_parts[] = date('m', $time);
+        // Add year/month structure only if WordPress setting is enabled
+        if (get_option('uploads_use_yearmonth_folders')) {
+            $time = strtotime($post->post_date);
+            $path_parts[] = date('Y', $time);
+            $path_parts[] = date('m', $time);
+        }
 
         // Add post identifier if set
         $post_identifier = $this->get_setting('post_identifier');

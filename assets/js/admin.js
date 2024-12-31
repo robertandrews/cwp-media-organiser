@@ -26,7 +26,10 @@ jQuery(document).ready(function ($) {
             previewHtml += '<span class="taxonomy">' + taxonomyName + '</span>/<span class="term">{term_slug}</span>/';
         }
 
-        previewHtml += '{YYYY}/{MM}/';
+        // Only show year/month folders if WordPress setting is enabled
+        if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.useYearMonthFolders) {
+            previewHtml += '{YYYY}/{MM}/';
+        }
 
         if (postIdentifier === 'slug') {
             previewHtml += '<span class="post-identifier">{post-slug}</span>/';
@@ -78,9 +81,9 @@ jQuery(document).ready(function ($) {
         });
     }
 
-    // Add post type info to the preview
+    // Add post type info after the checkbox description
     if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.postTypes) {
-        var postTypeInfo = $('<div class="post-type-info" style="margin: 10px 0;"></div>');
+        var postTypeInfo = $('<div class="post-type-info" style="margin-top: 10px; color: #666;"></div>');
         var postTypeList = '<strong>Available Post Types:</strong> ';
         var types = [];
         $.each(wpMediaOrganiser.postTypes, function (key, label) {
@@ -88,7 +91,7 @@ jQuery(document).ready(function ($) {
         });
         postTypeList += types.join(', ');
         postTypeInfo.html(postTypeList);
-        $('.wp-media-organiser-preview').after(postTypeInfo);
+        $('#use_post_type').closest('td').find('.description').after(postTypeInfo);
     }
 
     // Update preview on any form change
