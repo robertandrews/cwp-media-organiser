@@ -314,4 +314,45 @@ class WP_Media_Organiser_Processor
         }
         return $data;
     }
+
+    /**
+     * Bulk reorganize media for multiple posts
+     *
+     * @param array $post_ids Array of post IDs to process
+     * @return array Results of the operation
+     */
+    public function bulk_reorganize_media($post_ids)
+    {
+        $results = array(
+            'success' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+            'messages' => array(),
+        );
+
+        if (empty($post_ids)) {
+            $results['messages'][] = "No posts selected for media reorganization.";
+            return $results;
+        }
+
+        foreach ($post_ids as $post_id) {
+            $post = get_post($post_id);
+            if (!$post) {
+                $results['failed']++;
+                $results['messages'][] = "Post ID $post_id not found.";
+                continue;
+            }
+
+            try {
+                $this->reorganize_media($post_id, $post, false);
+                $results['success']++;
+                $results['messages'][] = "Successfully reorganized media for '{$post->post_title}' (ID: $post_id)";
+            } catch (Exception $e) {
+                $results['failed']++;
+                $results['messages'][] = "Failed to reorganize media for '{$post->post_title}' (ID: $post_id): " . $e->getMessage();
+            }
+        }
+
+        return $results;
+    }
 }

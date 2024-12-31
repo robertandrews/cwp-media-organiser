@@ -17,6 +17,11 @@ class WP_Media_Organiser
             $this->plugin_path,
             $this->plugin_url
         );
+
+        // Initialize admin functionality if in admin area
+        if (is_admin()) {
+            WP_Media_Organiser_Admin::get_instance();
+        }
     }
 
     private function load_dependencies()
@@ -24,6 +29,7 @@ class WP_Media_Organiser
         require_once $this->plugin_path . 'includes/class-logger.php';
         require_once $this->plugin_path . 'includes/class-settings.php';
         require_once $this->plugin_path . 'includes/class-media-processor.php';
+        require_once $this->plugin_path . 'includes/class-admin.php';
         require_once $this->plugin_path . 'includes/core/class-activator.php';
         require_once $this->plugin_path . 'includes/core/class-initializer.php';
     }
