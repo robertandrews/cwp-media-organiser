@@ -13,10 +13,7 @@ class WP_Media_Organiser
         $this->plugin_url = plugin_dir_url(dirname(dirname(__FILE__)));
 
         $this->load_dependencies();
-        $this->initializer = new WP_Media_Organiser_Initializer(
-            $this->plugin_path,
-            $this->plugin_url
-        );
+        $this->initializer = WP_Media_Organiser_Initializer::get_instance();
 
         // Initialize admin functionality if in admin area
         if (is_admin()) {

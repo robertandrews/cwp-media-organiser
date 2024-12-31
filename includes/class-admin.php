@@ -32,11 +32,9 @@ class WP_Media_Organiser_Admin
         $this->plugin_url = plugin_dir_url(dirname(__FILE__));
         $this->logger = WP_Media_Organiser_Logger::get_instance();
 
-        $this->logger->log("Admin class constructor called", 'debug');
-
-        // Initialize settings
-        $settings_table = $wpdb->prefix . 'media_organiser_settings';
-        $this->settings = new WP_Media_Organiser_Settings($settings_table, $this->plugin_path, $this->plugin_url);
+        // Get settings instance from initializer
+        $initializer = WP_Media_Organiser_Initializer::get_instance();
+        $this->settings = $initializer->get_settings();
 
         // Initialize processor
         $this->processor = new WP_Media_Organiser_Processor($this->settings);
@@ -58,8 +56,6 @@ class WP_Media_Organiser_Admin
 
         // Add AJAX handlers
         add_action('wp_ajax_get_preview_paths', array($this, 'ajax_get_preview_paths'));
-
-        $this->logger->log("Admin class initialization complete", 'debug');
     }
 
     /**

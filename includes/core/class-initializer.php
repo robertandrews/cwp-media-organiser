@@ -8,8 +8,17 @@ class WP_Media_Organiser_Initializer
     private $plugin_path;
     private $plugin_url;
     private $logger;
+    private static $instance = null;
 
-    public function __construct($plugin_path, $plugin_url)
+    public static function get_instance()
+    {
+        if (null === self::$instance) {
+            self::$instance = new self(plugin_dir_path(dirname(dirname(__FILE__))), plugin_dir_url(dirname(dirname(__FILE__))));
+        }
+        return self::$instance;
+    }
+
+    private function __construct($plugin_path, $plugin_url)
     {
         global $wpdb;
         $this->settings_table = $wpdb->prefix . 'media_organiser_settings';
