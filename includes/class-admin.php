@@ -314,6 +314,7 @@ class WP_Media_Organiser_Admin
 
         $colored_path = '/';
         $current_part = 0;
+        $date_parts_found = false;
 
         foreach ($parts as $part) {
             // Handle wp-content and uploads directories
@@ -337,11 +338,12 @@ class WP_Media_Organiser_Admin
             // Handle date components (YYYY/MM)
             elseif (preg_match('/^\d{4}$/', $part)) {
                 $colored_path .= $part . '/';
+                $date_parts_found = true;
             } elseif (preg_match('/^\d{2}$/', $part)) {
                 $colored_path .= $part . '/';
             }
-            // Handle post identifier (ID or slug)
-            elseif (is_numeric($part) || ($this->settings->get_setting('post_identifier') === 'slug' && !preg_match('/\.(jpg|jpeg|png|gif|webp|mp4|mp3|pdf)$/i', $part))) {
+            // Handle post identifier (ID or slug) - only after date parts
+            elseif ($date_parts_found && !preg_match('/\.(jpg|jpeg|png|gif|webp|mp4|mp3|pdf)$/i', $part)) {
                 $colored_path .= sprintf('<span class="path-component path-post-identifier">%s</span>/', $part);
             }
             // The last part is the filename

@@ -128,6 +128,14 @@ class WP_Media_Organiser_Processor
         $file_info = pathinfo(get_attached_file($attachment_id));
         $post = $temp_post ?: get_post($post_id);
 
+        // Debug post object
+        $this->logger->log("Post object details:", 'info');
+        $this->logger->log("Post ID: " . $post->ID, 'info');
+        $this->logger->log("Post title: " . $post->post_title, 'info');
+        $this->logger->log("Post name: " . $post->post_name, 'info');
+        $this->logger->log("Post status: " . $post->post_status, 'info');
+        $this->logger->log("Post type: " . $post->post_type, 'info');
+
         $path_parts = array();
 
         // Add post type if enabled
@@ -157,13 +165,28 @@ class WP_Media_Organiser_Processor
             $path_parts[] = date('m', $time);
         }
 
-        // Add post identifier if set
+        // Add post identifier if set (moved after date structure)
         $post_identifier = $this->settings->get_setting('post_identifier');
+        $this->logger->log("Post identifier setting: " . $post_identifier, 'info');
+
         if ($post_identifier === 'slug') {
-            $path_parts[] = $post->post_name;
+            // Get the post slug, or generate one from title if it's empty (draft posts)
+            $slug = $post->post_name;
+            if (empty($slug)) {
+                $slug = sanitize_title($post->post_title);
+                $this->logger->log("Generated temporary slug from title: " . $slug, 'info');
+            }
+            if (!empty($slug)) {
+                $path_parts[] = $slug;
+                $this->logger->log("Added slug to path parts: " . $slug, 'info');
+            }
         } elseif ($post_identifier === 'id') {
             $path_parts[] = $post_id;
+            $this->logger->log("Added ID to path parts: " . $post_id, 'info');
         }
+
+        // Log the final path parts array
+        $this->logger->log("Path parts array: " . print_r($path_parts, true), 'info');
 
         // Combine parts and add filename
         $path = implode('/', array_filter($path_parts));
@@ -343,7 +366,7 @@ class WP_Media_Organiser_Processor
             'failed' => 0,
             'already_organized' => 0,
             'messages' => array(),
-            'post_messages' => array(), // New structure for grouped messages
+            'post_messages' => array(),
         );
 
         if (empty($post_ids)) {
@@ -373,7 +396,7 @@ class WP_Media_Organiser_Processor
 
                 foreach ($media_files as $attachment_id => $file) {
                     $attachment = get_post($attachment_id);
-                    $new_path = $this->get_new_file_path($attachment_id, $post_id);
+                    $new_path = $this->get_new_file_path($attachment_id, $post_id, $post);
 
                     if (!$new_path) {
                         $results['skipped']++;
