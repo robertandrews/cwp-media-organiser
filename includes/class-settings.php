@@ -1,0 +1,198 @@
+<?php
+/**
+ * Settings functionality
+ */
+
+if (!defined('WPINC')) {
+    die;
+}
+
+class WP_Media_Organiser_Settings
+{
+    private $settings_table;
+    private $plugin_path;
+    private $plugin_url;
+    private $logger;
+
+    public function __construct($settings_table, $plugin_path, $plugin_url)
+    {
+        $this->settings_table = $settings_table;
+        $this->plugin_path = $plugin_path;
+        $this->plugin_url = $plugin_url;
+        $this->logger = WP_Media_Organiser_Logger::get_instance();
+
+        add_action('admin_menu', array($this, 'add_admin_menu'));
+        add_action('admin_init', array($this, 'register_settings'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+        add_action('wp_ajax_get_taxonomies', array($this, 'ajax_get_taxonomies'));
+    }
+
+    public function get_setting($name)
+    {
+        global $wpdb;
+        $query = $wpdb->prepare(
+            "SELECT setting_value FROM {$this->settings_table} WHERE setting_name = %s",
+            $name
+        );
+        $this->logger->log("Getting setting: $name", 'debug');
+        $value = $wpdb->get_var($query);
+        $this->logger->log("Retrieved setting $name = " . ($value !== null ? $value : 'null'), 'debug');
+        return $value !== null ? $value : '';
+    }
+
+    public function update_setting($name, $value)
+    {
+        global $wpdb;
+        $this->logger->log("Updating setting: $name = $value", 'debug');
+
+        $result = $wpdb->replace(
+            $this->settings_table,
+            array(
+                'setting_name' => $name,
+                'setting_value' => $value,
+            ),
+            array('%s', '%s')
+        );
+
+        if ($result === false) {
+            $this->logger->log("Failed to update setting: $name. Error: " . $wpdb->last_error, 'error');
+        } else {
+            $this->logger->log("Successfully updated setting: $name", 'debug');
+        }
+    }
+
+    public function get_valid_post_types()
+    {
+        // Get all post types
+        $post_types = get_post_types(array('public' => true), 'objects');
+
+        // Add 'page' explicitly if not already included
+        if (!isset($post_types['page'])) {
+            $post_types['page'] = get_post_type_object('page');
+        }
+
+        // Built-in types to exclude
+        $exclude_types = array(
+            'attachment',
+            'revision',
+            'nav_menu_item',
+            'custom_css',
+            'customize_changeset',
+            'oembed_cache',
+            'user_request',
+            'wp_block',
+        );
+
+        // Filter out unwanted post types
+        foreach ($exclude_types as $exclude) {
+            unset($post_types[$exclude]);
+        }
+
+        // Convert to simple array of labels
+        $formatted_types = array();
+        foreach ($post_types as $type) {
+            $formatted_types[$type->name] = $type->label;
+        }
+
+        return $formatted_types;
+    }
+
+    public function add_admin_menu()
+    {
+        add_submenu_page(
+            'upload.php',
+            __('Media Organiser Settings', 'wp-media-organiser'),
+            __('Media Organiser', 'wp-media-organiser'),
+            'manage_options',
+            'wp-media-organiser',
+            array($this, 'render_settings_page')
+        );
+    }
+
+    public function register_settings()
+    {
+        // Registration will be handled directly through our custom table
+    }
+
+    public function enqueue_admin_scripts($hook)
+    {
+        if ('media_page_wp-media-organiser' !== $hook) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'wp-media-organiser-admin',
+            $this->plugin_url . 'assets/css/admin.css',
+            array(),
+            '1.0.0'
+        );
+
+        wp_enqueue_script(
+            'wp-media-organiser-admin',
+            $this->plugin_url . 'assets/js/admin.js',
+            array('jquery'),
+            '1.0.0',
+            true
+        );
+
+        // Get all valid post types
+        $post_types = $this->get_valid_post_types();
+
+        // Pass the current taxonomy value and post types to JavaScript
+        wp_localize_script(
+            'wp-media-organiser-admin',
+            'wpMediaOrganiser',
+            array(
+                'currentTaxonomy' => $this->get_setting('taxonomy_name'),
+                'postTypes' => $post_types,
+                'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
+            )
+        );
+    }
+
+    public function ajax_get_taxonomies()
+    {
+        $this->logger->log('AJAX request: get_taxonomies', 'debug');
+        $taxonomies = get_taxonomies(array('public' => true), 'objects');
+        $response = array();
+
+        foreach ($taxonomies as $tax) {
+            $response[$tax->name] = $tax->label;
+        }
+
+        $this->logger->log('Available taxonomies: ' . print_r($response, true), 'debug');
+        wp_send_json_success($response);
+    }
+
+    public function render_settings_page()
+    {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        // Save settings
+        if (isset($_POST['submit'])) {
+            check_admin_referer('wp_media_organiser_settings');
+
+            $taxonomy_value = sanitize_text_field($_POST['taxonomy_name']);
+            $this->logger->log("Saving settings from form submission", 'info');
+            $this->logger->log("Taxonomy value submitted: $taxonomy_value", 'debug');
+
+            $this->update_setting('use_post_type', isset($_POST['use_post_type']) ? '1' : '0');
+            $this->update_setting('taxonomy_name', $taxonomy_value);
+            $this->update_setting('post_identifier', sanitize_text_field($_POST['post_identifier']));
+
+            $saved_value = $this->get_setting('taxonomy_name');
+            $this->logger->log("Settings saved successfully", 'info');
+
+            echo '<div class="notice notice-success"><p>' . __('Settings saved.', 'wp-media-organiser') . '</p></div>';
+        }
+
+        // Get current settings
+        $use_post_type = $this->get_setting('use_post_type');
+        $taxonomy_name = $this->get_setting('taxonomy_name');
+        $post_identifier = $this->get_setting('post_identifier');
+
+        include $this->plugin_path . 'templates/settings-page.php';
+    }
+}
