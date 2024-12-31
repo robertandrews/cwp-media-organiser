@@ -146,6 +146,7 @@ class WP_Media_Organiser_Settings
                 'currentTaxonomy' => $this->get_setting('taxonomy_name'),
                 'postTypes' => $post_types,
                 'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
+                'uploadsPath' => str_replace(site_url(), '', wp_get_upload_dir()['baseurl']),
             )
         );
     }

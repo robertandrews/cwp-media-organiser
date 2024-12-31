@@ -11,6 +11,7 @@ class WP_Media_Organiser_Processor
 {
     private $logger;
     private $settings;
+    private $is_processing = false;
 
     public function __construct($settings)
     {
@@ -25,29 +26,50 @@ class WP_Media_Organiser_Processor
             return;
         }
 
-        $this->logger->log("Starting media reorganization for post ID: $post_id", 'info');
-
-        // Get all media files associated with this post
-        $media_files = $this->get_post_media_files($post_id);
-        $this->logger->log("Found " . count($media_files) . " media files to process", 'info');
-
-        foreach ($media_files as $attachment_id => $file) {
-            $new_path = $this->get_new_file_path($attachment_id, $post_id);
-            if (!$new_path) {
-                $this->logger->log("Skipping file (no new path generated): $file", 'info');
-                continue;
-            }
-
-            if ($new_path === $file) {
-                $this->logger->log("File already in correct location (no move needed): $file", 'info');
-            } else {
-                $this->logger->log("Moving file from: $file", 'info');
-                $this->logger->log("Moving file to: $new_path", 'info');
-                $this->move_media_file($attachment_id, $file, $new_path);
-            }
+        // Skip if not a valid post type
+        $valid_types = array_keys($this->settings->get_valid_post_types());
+        if (!in_array($post->post_type, $valid_types)) {
+            $this->logger->log("Skipping media reorganization - post type '{$post->post_type}' not supported", 'debug');
+            return;
         }
 
-        $this->logger->log("Completed media reorganization for post ID: $post_id", 'info');
+        // Prevent recursive processing
+        if ($this->is_processing) {
+            $this->logger->log("Skipping recursive media reorganization for post: '{$post->post_title}' (ID: $post_id)", 'debug');
+            return;
+        }
+
+        $this->is_processing = true;
+
+        try {
+            $this->logger->log("Starting media reorganization for post: '{$post->post_title}' (ID: $post_id)", 'info');
+
+            // Get all media files associated with this post
+            $media_files = $this->get_post_media_files($post_id);
+            $this->logger->log("Found " . count($media_files) . " media files associated with post '{$post->post_title}'", 'info');
+
+            foreach ($media_files as $attachment_id => $file) {
+                $attachment = get_post($attachment_id);
+                $new_path = $this->get_new_file_path($attachment_id, $post_id);
+                if (!$new_path) {
+                    $this->logger->log("Cannot generate new path for media file: '{$attachment->post_title}' (ID: $attachment_id)", 'info');
+                    continue;
+                }
+
+                if ($new_path === $file) {
+                    $this->logger->log("Media file already in correct location: '{$attachment->post_title}' at $file", 'info');
+                } else {
+                    $this->logger->log("Moving media file '{$attachment->post_title}' (ID: $attachment_id)", 'info');
+                    $this->logger->log("  From: $file", 'info');
+                    $this->logger->log("  To: $new_path", 'info');
+                    $this->move_media_file($attachment_id, $file, $new_path);
+                }
+            }
+
+            $this->logger->log("Completed media reorganization for post: '{$post->post_title}' (ID: $post_id)", 'info');
+        } finally {
+            $this->is_processing = false;
+        }
     }
 
     private function get_post_media_files($post_id)
@@ -175,17 +197,19 @@ class WP_Media_Organiser_Processor
     {
         global $wpdb;
 
-        // Get the old URL before the move
+        $attachment = get_post($attachment_id);
         $upload_dir = wp_upload_dir();
         $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
         $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
 
         if ($old_url === $new_url) {
-            $this->logger->log("URLs are identical, no content updates needed", 'debug');
+            $this->logger->log("No URL update needed for '{$attachment->post_title}' - URLs are identical", 'debug');
             return;
         }
 
-        $this->logger->log("Updating URLs in post content from: $old_url to: $new_url", 'info');
+        $this->logger->log("Updating media library database record for: '{$attachment->post_title}' (ID: $attachment_id)", 'info');
+        $this->logger->log("  From: $old_url", 'info');
+        $this->logger->log("  To: $new_url", 'info');
 
         // Also handle URLs without scheme (//example.com/...)
         $old_url_no_scheme = preg_replace('/^https?:/', '', $old_url);
@@ -196,17 +220,29 @@ class WP_Media_Organiser_Processor
         $new_url_relative = wp_make_link_relative($new_url);
 
         // Get all posts that might contain any version of the old URL
+        $valid_types = array_keys($this->settings->get_valid_post_types());
+        $valid_types_list = "'" . implode("','", array_map('esc_sql', $valid_types)) . "'";
+
         $posts = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT ID, post_content FROM {$wpdb->posts}
-                WHERE post_content LIKE %s
-                OR post_content LIKE %s
-                OR post_content LIKE %s",
+                "SELECT ID, post_content, post_title, post_type FROM {$wpdb->posts}
+                WHERE post_type IN ($valid_types_list)
+                AND (
+                    post_content LIKE %s
+                    OR post_content LIKE %s
+                    OR post_content LIKE %s
+                )",
                 '%' . $wpdb->esc_like($old_url) . '%',
                 '%' . $wpdb->esc_like($old_url_no_scheme) . '%',
                 '%' . $wpdb->esc_like($old_url_relative) . '%'
             )
         );
+
+        if (empty($posts)) {
+            $this->logger->log("No posts found containing URLs for '{$attachment->post_title}'", 'info');
+        } else {
+            $this->logger->log("Found " . count($posts) . " posts containing URLs for '{$attachment->post_title}'", 'info');
+        }
 
         foreach ($posts as $post) {
             $updated_content = str_replace(
@@ -216,7 +252,9 @@ class WP_Media_Organiser_Processor
             );
 
             if ($updated_content !== $post->post_content) {
-                $this->logger->log("Updating URLs in post ID: {$post->ID}", 'info');
+                $this->logger->log("Updating image URL in post content for: '{$post->post_title}' (ID: {$post->ID})", 'info');
+                $this->logger->log("  From: $old_url", 'info');
+                $this->logger->log("  To: $new_url", 'info');
 
                 wp_update_post(array(
                     'ID' => $post->ID,
@@ -238,13 +276,18 @@ class WP_Media_Organiser_Processor
         );
 
         $meta_rows = $wpdb->get_results($meta_query);
+        if (!empty($meta_rows)) {
+            $this->logger->log("Found " . count($meta_rows) . " meta entries containing URLs for '{$attachment->post_title}'", 'info');
+        }
+
         foreach ($meta_rows as $meta) {
+            $post = get_post($meta->post_id);
             $updated_value = $this->update_serialized_url($meta->meta_value, $old_url, $new_url);
             $updated_value = $this->update_serialized_url($updated_value, $old_url_no_scheme, $new_url_no_scheme);
             $updated_value = $this->update_serialized_url($updated_value, $old_url_relative, $new_url_relative);
 
             if ($updated_value !== $meta->meta_value) {
-                $this->logger->log("Updating URL in post meta - Post ID: {$meta->post_id}, Meta key: {$meta->meta_key}", 'info');
+                $this->logger->log("Updating URL in meta field '{$meta->meta_key}' for post: '{$post->post_title}' (ID: {$meta->post_id})", 'info');
                 update_post_meta($meta->post_id, $meta->meta_key, $updated_value);
             }
         }

@@ -6,9 +6,13 @@ jQuery(document).ready(function ($) {
 
         console.log('Current taxonomy value:', taxonomyName);
 
-        var preview = '/wp-content/uploads/';
+        // Get uploads path from WordPress settings
         var previewHtml = '';
+        if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.uploadsPath) {
+            previewHtml = wpMediaOrganiser.uploadsPath;
+        }
 
+        // Add post type if enabled
         if (usePostType) {
             // Get a sample post type for preview
             var samplePostType = '{post}';
@@ -19,25 +23,25 @@ jQuery(document).ready(function ($) {
                     samplePostType = '{' + postTypes[0] + '}';
                 }
             }
-            previewHtml += '<span class="post-type">' + samplePostType + '</span>/';
+            previewHtml += '/<span class="post-type">' + samplePostType + '</span>';
         }
 
         if (taxonomyName) {
-            previewHtml += '<span class="taxonomy">' + taxonomyName + '</span>/<span class="term">{term_slug}</span>/';
+            previewHtml += '/<span class="taxonomy">' + taxonomyName + '</span>/<span class="term">{term_slug}</span>';
         }
 
         // Only show year/month folders if WordPress setting is enabled
         if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.useYearMonthFolders) {
-            previewHtml += '{YYYY}/{MM}/';
+            previewHtml += '/{YYYY}/{MM}';
         }
 
         if (postIdentifier === 'slug') {
-            previewHtml += '<span class="post-identifier">{post-slug}</span>/';
+            previewHtml += '/<span class="post-identifier">{post-slug}</span>';
         } else if (postIdentifier === 'id') {
-            previewHtml += '<span class="post-identifier">{post-id}</span>/';
+            previewHtml += '/<span class="post-identifier">{post-id}</span>';
         }
 
-        previewHtml += 'image.jpg';
+        previewHtml += '/image.jpg';
 
         $('.wp-media-organiser-preview code').html(previewHtml);
     }
