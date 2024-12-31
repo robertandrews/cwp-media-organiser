@@ -170,7 +170,7 @@ class WP_Media_Organiser_Admin
             '<style>
                 .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
                 .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
-                .media-status-item .status-text { flex: 1; padding-top: 8px; }
+                .media-status-item .status-text { flex: 1; padding-bottom: 8px; }
                 .status-dot { margin-right: 5px; }
                 .status-dot-moved { color: #46b450; }
                 .status-dot-existing { color: #ffb900; }
@@ -246,10 +246,22 @@ class WP_Media_Organiser_Admin
 
                             // Color-code the file path components
                             $path_pattern = '/<code>(.*?)<\/code>/';
-                            if (preg_match($path_pattern, $linked_item, $path_matches)) {
-                                $path = $path_matches[1];
-                                $colored_path = $this->color_code_path_components($path);
-                                $linked_item = str_replace($path_matches[0], '<code>' . $colored_path . '</code>', $linked_item);
+                            if (preg_match_all($path_pattern, $linked_item, $path_matches)) {
+                                // If we have two paths (from -> to), only color-code the second one
+                                if (count($path_matches[0]) === 2) {
+                                    $from_path = $this->normalize_path($path_matches[1][0]);
+                                    $to_path = $this->color_code_path_components($path_matches[1][1]);
+                                    $linked_item = str_replace(
+                                        array($path_matches[0][0], $path_matches[0][1]),
+                                        array('<code><del>' . $from_path . '</del></code>', '<code>' . $to_path . '</code>'),
+                                        $linked_item
+                                    );
+                                } else {
+                                    // Single path (e.g., "already in correct location") - color-code it
+                                    $path = $path_matches[1][0];
+                                    $colored_path = $this->color_code_path_components($path);
+                                    $linked_item = str_replace($path_matches[0][0], '<code>' . $colored_path . '</code>', $linked_item);
+                                }
                             }
 
                             $output .= sprintf(
@@ -260,6 +272,7 @@ class WP_Media_Organiser_Admin
                                     'code' => array(),
                                     'a' => array('href' => array()),
                                     'span' => array('class' => array()),
+                                    'del' => array(),
                                 ))
                             );
                         } else {
@@ -339,6 +352,25 @@ class WP_Media_Organiser_Admin
         }
 
         return rtrim($colored_path, '/');
+    }
+
+    /**
+     * Normalize a path without color coding
+     *
+     * @param string $path The file path to normalize
+     * @return string The normalized path
+     */
+    private function normalize_path($path)
+    {
+        // First, normalize slashes
+        $path = str_replace('\\', '/', $path);
+
+        // Extract the path starting from /wp-content/
+        if (strpos($path, '/wp-content/') !== false) {
+            $path = substr($path, strpos($path, '/wp-content/'));
+        }
+
+        return $path;
     }
 
     /**

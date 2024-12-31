@@ -384,7 +384,7 @@ class WP_Media_Organiser_Processor
                         $files_moved = true;
                         $results['success']++;
                         $post_message['items'][] = sprintf(
-                            'Media ID %d ("%s"): Moved from <code>%s</code> to <code>%s</code>',
+                            'Media ID %d ("%s"): Moved from <del><code>%s</code></del> to <code>%s</code>',
                             $attachment_id,
                             $attachment->post_title,
                             esc_html($file),
