@@ -49,6 +49,10 @@ class WP_Media_Organiser_Admin
 
         // Add admin notices
         add_action('admin_notices', array($this, 'bulk_action_admin_notice'));
+        add_action('admin_notices', array($this, 'post_update_admin_notice'));
+
+        // Handle post updates
+        add_action('post_updated', array($this, 'handle_post_update'), 10, 3);
 
         $this->logger->log("Admin class initialization complete", 'debug');
     }
@@ -105,7 +109,6 @@ class WP_Media_Organiser_Admin
                 }
             }
 
-            $processed = intval($_REQUEST['processed']);
             $success = intval($_REQUEST['success']);
             $already_organized = intval($_REQUEST['already_organized']);
             $failed = intval($_REQUEST['failed']);
@@ -114,94 +117,245 @@ class WP_Media_Organiser_Admin
             $post_messages = get_transient('wp_media_organiser_bulk_messages');
             delete_transient('wp_media_organiser_bulk_messages');
 
-            $output = sprintf(
-                '<div class="notice notice-info is-dismissible">' .
-                '<style>
-                    .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
-                    .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
-                    .media-status-item .status-text { flex: 1; padding-top: 8px; }
-                    .status-dot { margin-right: 5px; }
-                    .status-dot-moved { color: #46b450; }
-                    .status-dot-existing { color: #ffb900; }
-                    .status-dot-failed { color: #dc3232; }
-                    .status-dot-skipped { color: #888888; }
-                    .summary-counts span { margin-right: 15px; }
-                </style>' .
-                '<p class="summary-counts">' .
-                '<span><span class="status-dot status-dot-moved">●</span>Files moved: %1$d</span>' .
-                '<span><span class="status-dot status-dot-existing">●</span>Already organized: %2$d</span>' .
-                '<span><span class="status-dot status-dot-failed">●</span>Failed: %3$d</span>' .
-                '<span><span class="status-dot status-dot-skipped">●</span>Skipped: %4$d</span>' .
-                '</p>',
-                $success,
-                $already_organized,
-                $failed,
-                $skipped
-            );
+            echo $this->render_media_status_notice($success, $already_organized, $failed, $skipped, $post_messages);
+        }
+    }
 
-            if (!empty($post_messages)) {
-                foreach ($post_messages as $post_message) {
-                    // Extract post ID from the title using regex
-                    if (preg_match('/Post ID (\d+):/', $post_message['title'], $matches)) {
-                        $post_id = $matches[1];
-                        $post_title = preg_replace('/^Post ID \d+: /', '', $post_message['title']);
-                        $post_edit_link = get_edit_post_link($post_id);
-                        $output .= sprintf(
-                            '<p><strong>Post ID <a href="%s">%d</a>: %s</strong></p>',
-                            esc_url($post_edit_link),
-                            $post_id,
-                            esc_html($post_title)
-                        );
-                    } else {
-                        $output .= sprintf('<p><strong>%s</strong></p>', esc_html($post_message['title']));
-                    }
+    /**
+     * Display admin notice after post update
+     */
+    public function post_update_admin_notice()
+    {
+        $screen = get_current_screen();
+        if ($screen->base !== 'post') {
+            return;
+        }
 
-                    if (!empty($post_message['items'])) {
-                        $output .= '<ul style="margin-left: 20px;">';
-                        foreach ($post_message['items'] as $item) {
-                            // Extract media ID from the message using regex
-                            if (preg_match('/Media ID (\d+) \("([^"]+)"\)/', $item, $matches)) {
-                                $media_id = $matches[1];
-                                $media_title = $matches[2];
-                                $media_edit_link = get_edit_post_link($media_id);
-                                $thumbnail = wp_get_attachment_image($media_id, array(36, 36), true);
+        $post_id = get_the_ID();
+        if (!$post_id) {
+            return;
+        }
 
-                                // Determine status type and apply appropriate styling
-                                $dot_class = 'status-dot-existing';
-                                if (strpos($item, 'Moved from') !== false) {
-                                    $dot_class = 'status-dot-moved';
-                                } elseif (strpos($item, 'Cannot generate') !== false || strpos($item, 'Error:') !== false) {
-                                    $dot_class = 'status-dot-failed';
-                                }
+        $results = get_transient('wp_media_organiser_post_' . $post_id);
+        if (!$results) {
+            return;
+        }
 
-                                // Replace the original "Media ID X" text with a linked version
-                                $linked_item = preg_replace(
-                                    '/Media ID \d+ \("([^"]+)"\)/',
-                                    sprintf('Media ID <a href="%s">%d</a> ("%s")', esc_url($media_edit_link), $media_id, $media_title),
-                                    $item
-                                );
+        // Delete the transient immediately to prevent showing the notice again
+        delete_transient('wp_media_organiser_post_' . $post_id);
 
-                                $output .= sprintf(
-                                    '<li class="media-status-item"><div>%s</div><span class="status-text"><span class="status-dot %s">●</span>%s</span></li>',
-                                    $thumbnail,
-                                    $dot_class,
-                                    wp_kses($linked_item, array('code' => array(), 'a' => array('href' => array())))
-                                );
-                            } else {
-                                // For messages without media ID (like errors)
-                                $output .= sprintf(
-                                    '<li><span class="status-text"><span class="status-dot status-dot-failed">●</span>%s</span></li>',
-                                    wp_kses($item, array('code' => array()))
-                                );
+        echo $this->render_media_status_notice(
+            $results['success'],
+            $results['already_organized'],
+            $results['failed'],
+            $results['skipped'],
+            $results['post_messages']
+        );
+    }
+
+    /**
+     * Render the media status notice HTML
+     *
+     * @param int $success Number of successfully moved files
+     * @param int $already_organized Number of already organized files
+     * @param int $failed Number of failed operations
+     * @param int $skipped Number of skipped files
+     * @param array $post_messages Array of post-specific messages
+     * @return string The rendered HTML
+     */
+    private function render_media_status_notice($success, $already_organized, $failed, $skipped, $post_messages)
+    {
+        $output = sprintf(
+            '<div class="notice notice-info is-dismissible">' .
+            '<style>
+                .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
+                .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
+                .media-status-item .status-text { flex: 1; padding-top: 8px; }
+                .status-dot { margin-right: 5px; }
+                .status-dot-moved { color: #46b450; }
+                .status-dot-existing { color: #ffb900; }
+                .status-dot-failed { color: #dc3232; }
+                .status-dot-skipped { color: #888888; }
+                .summary-counts span { margin-right: 15px; }
+                /* Path component styles */
+                .path-component { padding: 2px 4px; border-radius: 2px; }
+                .path-post-type { background-color: #ffebee; color: #c62828; }
+                .path-taxonomy { background-color: #e8f5e9; color: #2e7d32; }
+                .path-term { background-color: #e3f2fd; color: #1565c0; }
+                .path-post-identifier { background-color: #fff3e0; color: #ef6c00; }
+                code {
+                    background: #f5f5f5 !important;
+                    margin: 0 !important;
+                    display: inline-block !important;
+                    border-radius: 4px !important;
+                }
+            </style>' .
+            '<p class="summary-counts">' .
+            '<span><span class="status-dot status-dot-moved">●</span>Files moved: %1$d</span>' .
+            '<span><span class="status-dot status-dot-existing">●</span>Already organized: %2$d</span>' .
+            '<span><span class="status-dot status-dot-failed">●</span>Failed: %3$d</span>' .
+            '<span><span class="status-dot status-dot-skipped">●</span>Skipped: %4$d</span>' .
+            '</p>',
+            $success,
+            $already_organized,
+            $failed,
+            $skipped
+        );
+
+        if (!empty($post_messages)) {
+            foreach ($post_messages as $post_message) {
+                // Extract post ID from the title using regex
+                if (preg_match('/Post ID (\d+):/', $post_message['title'], $matches)) {
+                    $post_id = $matches[1];
+                    $post_title = preg_replace('/^Post ID \d+: /', '', $post_message['title']);
+                    $post_edit_link = get_edit_post_link($post_id);
+                    $output .= sprintf(
+                        '<p><strong>Post ID <a href="%s">%d</a>: %s</strong></p>',
+                        esc_url($post_edit_link),
+                        $post_id,
+                        esc_html($post_title)
+                    );
+                } else {
+                    $output .= sprintf('<p><strong>%s</strong></p>', esc_html($post_message['title']));
+                }
+
+                if (!empty($post_message['items'])) {
+                    $output .= '<ul style="margin-left: 20px;">';
+                    foreach ($post_message['items'] as $item) {
+                        // Extract media ID from the message using regex
+                        if (preg_match('/Media ID (\d+) \("([^"]+)"\)/', $item, $matches)) {
+                            $media_id = $matches[1];
+                            $media_title = $matches[2];
+                            $media_edit_link = get_edit_post_link($media_id);
+                            $thumbnail = wp_get_attachment_image($media_id, array(36, 36), true);
+
+                            // Determine status type and apply appropriate styling
+                            $dot_class = 'status-dot-existing';
+                            if (strpos($item, 'Moved from') !== false) {
+                                $dot_class = 'status-dot-moved';
+                            } elseif (strpos($item, 'Cannot generate') !== false || strpos($item, 'Error:') !== false) {
+                                $dot_class = 'status-dot-failed';
                             }
+
+                            // Replace the original "Media ID X" text with a linked version
+                            $linked_item = preg_replace(
+                                '/Media ID \d+ \("([^"]+)"\)/',
+                                sprintf('Media ID <a href="%s">%d</a> ("%s")', esc_url($media_edit_link), $media_id, $media_title),
+                                $item
+                            );
+
+                            // Color-code the file path components
+                            $path_pattern = '/<code>(.*?)<\/code>/';
+                            if (preg_match($path_pattern, $linked_item, $path_matches)) {
+                                $path = $path_matches[1];
+                                $colored_path = $this->color_code_path_components($path);
+                                $linked_item = str_replace($path_matches[0], '<code>' . $colored_path . '</code>', $linked_item);
+                            }
+
+                            $output .= sprintf(
+                                '<li class="media-status-item"><div>%s</div><span class="status-text"><span class="status-dot %s">●</span>%s</span></li>',
+                                $thumbnail,
+                                $dot_class,
+                                wp_kses($linked_item, array(
+                                    'code' => array(),
+                                    'a' => array('href' => array()),
+                                    'span' => array('class' => array()),
+                                ))
+                            );
+                        } else {
+                            // For messages without media ID (like errors)
+                            $output .= sprintf(
+                                '<li><span class="status-text"><span class="status-dot status-dot-failed">●</span>%s</span></li>',
+                                wp_kses($item, array('code' => array()))
+                            );
                         }
-                        $output .= '</ul>';
                     }
+                    $output .= '</ul>';
                 }
             }
-
-            $output .= '</div>';
-            echo $output;
         }
+
+        $output .= '</div>';
+        return $output;
+    }
+
+    /**
+     * Color-code path components based on their type
+     *
+     * @param string $path The file path to color-code
+     * @return string The path with colored components
+     */
+    private function color_code_path_components($path)
+    {
+        // First, identify the uploads base path
+        $upload_dir = wp_upload_dir();
+        $base_path = str_replace(array('\\', '/'), '/', $upload_dir['basedir']);
+        $path = str_replace(array('\\', '/'), '/', $path);
+
+        // Remove the base path to work with the relative path
+        $relative_path = str_replace($base_path . '/', '', $path);
+        $parts = explode('/', $relative_path);
+
+        $colored_path = '/wp-content/uploads/';
+        $current_part = 0;
+
+        foreach ($parts as $part) {
+            if (empty($part)) {
+                continue;
+            }
+
+            // Skip the first part if it's 'post' or 'page' (post type)
+            if ($current_part === 0 && in_array($part, array('post', 'page'))) {
+                $colored_path .= sprintf('<span class="path-component path-post-type">%s</span>/', $part);
+            }
+            // Next part could be taxonomy name (e.g., 'client', 'category')
+            elseif ($current_part === 1 && in_array($part, array('client', 'category', 'tag'))) {
+                $colored_path .= sprintf('<span class="path-component path-taxonomy">%s</span>/', $part);
+            }
+            // Next part could be the term slug
+            elseif ($current_part === 2 && !is_numeric($part) && !preg_match('/^\d{4}$/', $part)) {
+                $colored_path .= sprintf('<span class="path-component path-term">%s</span>/', $part);
+            }
+            // Handle date components (YYYY/MM)
+            elseif (preg_match('/^\d{4}$/', $part)) {
+                $colored_path .= $part . '/';
+            } elseif (preg_match('/^\d{2}$/', $part)) {
+                $colored_path .= $part . '/';
+            }
+            // Handle post ID
+            elseif (is_numeric($part)) {
+                $colored_path .= sprintf('<span class="path-component path-post-identifier">%s</span>/', $part);
+            }
+            // The last part is the filename
+            else {
+                $colored_path .= $part;
+            }
+
+            $current_part++;
+        }
+
+        return rtrim($colored_path, '/');
+    }
+
+    /**
+     * Handle post updates and reorganize media if needed
+     */
+    public function handle_post_update($post_id, $post_after, $post_before)
+    {
+        // Skip if this is an autosave
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+
+        // Skip if this is a revision
+        if (wp_is_post_revision($post_id)) {
+            return;
+        }
+
+        // Process the media reorganization
+        $results = $this->processor->bulk_reorganize_media(array($post_id));
+
+        // Store results in a transient specific to this post
+        set_transient('wp_media_organiser_post_' . $post_id, $results, 30);
     }
 }
