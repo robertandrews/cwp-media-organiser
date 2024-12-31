@@ -107,7 +107,13 @@ class WP_Media_Organiser_Admin
             delete_transient('wp_media_organiser_bulk_messages');
 
             $output = sprintf(
-                '<div class="notice notice-info is-dismissible"><p>' .
+                '<div class="notice notice-info is-dismissible">' .
+                '<style>
+                    .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
+                    .media-status-item img { width: 30px; height: 30px; object-fit: cover; margin-right: 10px; }
+                    .media-status-item .status-text { flex: 1; padding-top: 2px; }
+                </style>' .
+                '<p>' .
                 __('Media organization check completed. Files moved: %1$d, Already organized: %2$d, Failed: %3$d, Skipped: %4$d', 'wp-media-organiser') .
                 '</p>',
                 $success,
@@ -122,7 +128,19 @@ class WP_Media_Organiser_Admin
                     if (!empty($post_message['items'])) {
                         $output .= '<ul style="margin-left: 20px;">';
                         foreach ($post_message['items'] as $item) {
-                            $output .= sprintf('<li>%s</li>', wp_kses($item, array('code' => array())));
+                            // Extract media ID from the message using regex
+                            if (preg_match('/Media ID (\d+)/', $item, $matches)) {
+                                $media_id = $matches[1];
+                                $thumbnail = wp_get_attachment_image($media_id, array(30, 30), true);
+                                $output .= sprintf(
+                                    '<li class="media-status-item">%s<span class="status-text">%s</span></li>',
+                                    $thumbnail,
+                                    wp_kses($item, array('code' => array()))
+                                );
+                            } else {
+                                // For messages without media ID (like errors)
+                                $output .= sprintf('<li>%s</li>', wp_kses($item, array('code' => array())));
+                            }
                         }
                         $output .= '</ul>';
                     }
