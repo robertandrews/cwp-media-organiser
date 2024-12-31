@@ -80,12 +80,13 @@ class WP_Media_Organiser_Admin
             'bulk_reorganize_media' => '1',
             'processed' => count($post_ids),
             'success' => $results['success'],
+            'already_organized' => $results['already_organized'],
             'failed' => $results['failed'],
             'skipped' => $results['skipped'],
         ), $redirect_to);
 
         // Store messages in transient for display
-        set_transient('wp_media_organiser_bulk_messages', $results['messages'], 30);
+        set_transient('wp_media_organiser_bulk_messages', $results['post_messages'], 30);
 
         return $redirect_to;
     }
@@ -98,22 +99,38 @@ class WP_Media_Organiser_Admin
         if (!empty($_REQUEST['bulk_reorganize_media'])) {
             $processed = intval($_REQUEST['processed']);
             $success = intval($_REQUEST['success']);
+            $already_organized = intval($_REQUEST['already_organized']);
             $failed = intval($_REQUEST['failed']);
             $skipped = intval($_REQUEST['skipped']);
 
-            $messages = get_transient('wp_media_organiser_bulk_messages');
+            $post_messages = get_transient('wp_media_organiser_bulk_messages');
             delete_transient('wp_media_organiser_bulk_messages');
 
-            printf(
+            $output = sprintf(
                 '<div class="notice notice-info is-dismissible"><p>' .
-                __('Media reorganization completed. Processed: %1$d, Success: %2$d, Failed: %3$d, Skipped: %4$d', 'wp-media-organiser') .
-                '</p>%5$s</div>',
-                $processed,
+                __('Media organization check completed. Files moved: %1$d, Already organized: %2$d, Failed: %3$d, Skipped: %4$d', 'wp-media-organiser') .
+                '</p>',
                 $success,
+                $already_organized,
                 $failed,
-                $skipped,
-                $messages ? '<ul><li>' . implode('</li><li>', array_map('esc_html', $messages)) . '</li></ul>' : ''
+                $skipped
             );
+
+            if (!empty($post_messages)) {
+                foreach ($post_messages as $post_message) {
+                    $output .= sprintf('<p><strong>%s</strong></p>', esc_html($post_message['title']));
+                    if (!empty($post_message['items'])) {
+                        $output .= '<ul style="margin-left: 20px;">';
+                        foreach ($post_message['items'] as $item) {
+                            $output .= sprintf('<li>%s</li>', wp_kses($item, array('code' => array())));
+                        }
+                        $output .= '</ul>';
+                    }
+                }
+            }
+
+            $output .= '</div>';
+            echo $output;
         }
     }
 }

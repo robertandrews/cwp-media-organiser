@@ -327,7 +327,9 @@ class WP_Media_Organiser_Processor
             'success' => 0,
             'skipped' => 0,
             'failed' => 0,
+            'already_organized' => 0,
             'messages' => array(),
+            'post_messages' => array(), // New structure for grouped messages
         );
 
         if (empty($post_ids)) {
@@ -344,12 +346,66 @@ class WP_Media_Organiser_Processor
             }
 
             try {
-                $this->reorganize_media($post_id, $post, false);
-                $results['success']++;
-                $results['messages'][] = "Successfully reorganized media for '{$post->post_title}' (ID: $post_id)";
+                $media_files = $this->get_post_media_files($post_id);
+                $files_moved = false;
+                $post_message = array(
+                    'title' => sprintf('Post ID %d: "%s" (%d media items)',
+                        $post_id,
+                        $post->post_title,
+                        count($media_files)
+                    ),
+                    'items' => array(),
+                );
+
+                foreach ($media_files as $attachment_id => $file) {
+                    $attachment = get_post($attachment_id);
+                    $new_path = $this->get_new_file_path($attachment_id, $post_id);
+
+                    if (!$new_path) {
+                        $results['skipped']++;
+                        $post_message['items'][] = sprintf(
+                            'Media ID %d ("%s"): Cannot generate new path',
+                            $attachment_id,
+                            $attachment->post_title
+                        );
+                        continue;
+                    }
+
+                    if ($new_path === $file) {
+                        $results['already_organized']++;
+                        $post_message['items'][] = sprintf(
+                            'Media ID %d ("%s"): Already in correct location: <code>%s</code>',
+                            $attachment_id,
+                            $attachment->post_title,
+                            esc_html($file)
+                        );
+                    } else {
+                        $this->move_media_file($attachment_id, $file, $new_path);
+                        $files_moved = true;
+                        $results['success']++;
+                        $post_message['items'][] = sprintf(
+                            'Media ID %d ("%s"): Moved from <code>%s</code> to <code>%s</code>',
+                            $attachment_id,
+                            $attachment->post_title,
+                            esc_html($file),
+                            esc_html($new_path)
+                        );
+                    }
+                }
+
+                if (count($media_files) === 0) {
+                    $post_message['items'][] = "No media files found";
+                }
+
+                $results['post_messages'][] = $post_message;
+
             } catch (Exception $e) {
                 $results['failed']++;
-                $results['messages'][] = "Failed to reorganize media for '{$post->post_title}' (ID: $post_id): " . $e->getMessage();
+                $post_message = array(
+                    'title' => sprintf('Post ID %d: "%s"', $post_id, $post->post_title),
+                    'items' => array(sprintf('Error: %s', $e->getMessage())),
+                );
+                $results['post_messages'][] = $post_message;
             }
         }
 
