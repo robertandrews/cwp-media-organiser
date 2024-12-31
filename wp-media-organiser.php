@@ -356,8 +356,16 @@ printf(
 
         foreach ($media_files as $attachment_id => $file) {
             $new_path = $this->get_new_file_path($attachment_id, $post_id);
-            if ($new_path && $new_path !== $file) {
-                $this->logger->log("Moving file: $file to $new_path", 'info');
+            if (!$new_path) {
+                $this->logger->log("Skipping file (no new path generated): $file", 'info');
+                continue;
+            }
+
+            if ($new_path === $file) {
+                $this->logger->log("File already in correct location (no move needed): $file", 'info');
+            } else {
+                $this->logger->log("Moving file from: $file", 'info');
+                $this->logger->log("Moving file to: $new_path", 'info');
                 $this->move_media_file($attachment_id, $file, $new_path);
             }
         }
