@@ -287,20 +287,24 @@ class WP_Media_Organiser_Admin
      */
     private function color_code_path_components($path)
     {
-        // First, identify the uploads base path
-        $upload_dir = wp_upload_dir();
-        $base_path = str_replace(array('\\', '/'), '/', $upload_dir['basedir']);
-        $path = str_replace(array('\\', '/'), '/', $path);
+        // First, identify the uploads base path and normalize slashes
+        $path = str_replace('\\', '/', $path);
 
-        // Remove the base path to work with the relative path
-        $relative_path = str_replace($base_path . '/', '', $path);
-        $parts = explode('/', $relative_path);
+        // Extract the path starting from /wp-content/
+        if (strpos($path, '/wp-content/') !== false) {
+            $path = substr($path, strpos($path, '/wp-content/'));
+        }
 
-        $colored_path = '/wp-content/uploads/';
+        // Split the path into parts, removing empty elements
+        $parts = array_filter(explode('/', $path), 'strlen');
+
+        $colored_path = '/';
         $current_part = 0;
 
         foreach ($parts as $part) {
-            if (empty($part)) {
+            // Handle wp-content and uploads directories
+            if ($part === 'wp-content' || $part === 'uploads') {
+                $colored_path .= $part . '/';
                 continue;
             }
 
