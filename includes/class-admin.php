@@ -173,8 +173,8 @@ class WP_Media_Organiser_Admin
                 .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
                 .media-status-item .status-text { flex: 1; padding-bottom: 8px; }
                 .status-dot { margin-right: 5px; }
-                .status-dot-moved { color: #46b450; }
-                .status-dot-existing { color: #ffb900; }
+                .status-dot-moved { color: #ffb900; }
+                .status-dot-existing { color: #46b450; }
                 .status-dot-failed { color: #dc3232; }
                 .status-dot-skipped { color: #888888; }
                 .summary-counts span { margin-right: 15px; }
@@ -192,8 +192,8 @@ class WP_Media_Organiser_Admin
                 }
             </style>' .
             '<p class="summary-counts">' .
-            '<span><span class="status-dot status-dot-moved">●</span>Files moved: %1$d</span>' .
             '<span><span class="status-dot status-dot-existing">●</span>Already organized: %2$d</span>' .
+            '<span><span class="status-dot status-dot-moved">●</span>Files moved: %1$d</span>' .
             '<span><span class="status-dot status-dot-failed">●</span>Failed: %3$d</span>' .
             '<span><span class="status-dot status-dot-skipped">●</span>Skipped: %4$d</span>' .
             '</p>',
@@ -426,6 +426,7 @@ class WP_Media_Organiser_Admin
             .media-status-item .status-text { flex: 1; padding-bottom: 8px; }
             .status-dot { margin-right: 5px; }
             .status-dot-preview { color: #ffb900; }
+            .status-dot-existing { color: #46b450; }
             .summary-counts span { margin-right: 15px; }
             .path-component { padding: 2px 4px; border-radius: 2px; }
             .path-post-type { background-color: #ffebee; color: #c62828; }
@@ -439,22 +440,49 @@ class WP_Media_Organiser_Admin
                 border-radius: 4px !important;
             }
         </style>';
-        echo '<p><strong>Preview: The following media files will be moved when you save:</strong></p>';
+
+        // Check if any files need to be moved
+        $needs_moving = false;
+        foreach ($media_files as $attachment_id => $current_path) {
+            $new_path = $this->processor->get_new_file_path($attachment_id, $post_id);
+            $normalized_new_path = strtolower(str_replace('\\', '/', $new_path));
+            $normalized_file = strtolower(str_replace('\\', '/', $current_path));
+            if ($normalized_new_path !== $normalized_file) {
+                $needs_moving = true;
+                break;
+            }
+        }
+
+        echo '<p><strong>' . ($needs_moving ? 'Preview: The following media files will be moved when you save:' : 'Media files organization status:') . '</strong></p>';
         echo '<ul style="margin-left: 20px;">';
 
         foreach ($media_files as $attachment_id => $current_path) {
             $attachment = get_post($attachment_id);
             $thumbnail = wp_get_attachment_image($attachment_id, array(36, 36), true);
+            $new_path = $this->processor->get_new_file_path($attachment_id, $post_id);
+
+            // Normalize paths for comparison
+            $normalized_new_path = strtolower(str_replace('\\', '/', $new_path));
+            $normalized_file = strtolower(str_replace('\\', '/', $current_path));
+
+            $is_in_place = $normalized_new_path === $normalized_file;
+
             echo sprintf(
-                '<li class="media-status-item" data-media-id="%d"><div>%s</div><span class="status-text"><span class="status-dot status-dot-preview">●</span>Media ID <a href="%s">%d</a> ("%s"): Will move from <code><del>%s</del></code> to <code class="preview-path-%d">%s</code></span></li>',
+                '<li class="media-status-item" data-media-id="%d"><div>%s</div><span class="status-text"><span class="status-dot status-dot-%s">●</span>Media ID <a href="%s">%d</a> ("%s"): %s %s</span></li>',
                 $attachment_id,
                 $thumbnail,
+                $is_in_place ? 'existing' : 'preview',
                 get_edit_post_link($attachment_id),
                 $attachment_id,
                 $attachment->post_title,
-                $this->normalize_path($current_path),
-                $attachment_id,
-                $this->color_code_path_components($this->processor->get_new_file_path($attachment_id, $post_id))
+                $is_in_place ? 'Already in correct location:' : 'Will move from',
+                $is_in_place
+                ? '<code>' . $this->color_code_path_components($current_path) . '</code>'
+                : sprintf('<code><del>%s</del></code> to <code class="preview-path-%d">%s</code>',
+                    $this->normalize_path($current_path),
+                    $attachment_id,
+                    $this->color_code_path_components($new_path)
+                )
             );
         }
 

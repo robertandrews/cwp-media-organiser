@@ -160,7 +160,9 @@ class WP_Media_Organiser_Processor
 
         // Add year/month structure only if WordPress setting is enabled
         if (get_option('uploads_use_yearmonth_folders')) {
-            $time = strtotime($post->post_date);
+            // Get the attachment's date, not the post's date
+            $attachment = get_post($attachment_id);
+            $time = strtotime($attachment->post_date);
             $path_parts[] = date('Y', $time);
             $path_parts[] = date('m', $time);
         }
@@ -408,7 +410,11 @@ class WP_Media_Organiser_Processor
                         continue;
                     }
 
-                    if ($new_path === $file) {
+                    // Normalize paths for comparison
+                    $normalized_new_path = str_replace('\\', '/', $new_path);
+                    $normalized_file = str_replace('\\', '/', $file);
+
+                    if (strtolower($normalized_new_path) === strtolower($normalized_file)) {
                         $results['already_organized']++;
                         $post_message['items'][] = sprintf(
                             'Media ID %d ("%s"): Already in correct location: <code>%s</code>',
