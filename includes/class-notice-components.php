@@ -34,8 +34,8 @@ class CWP_Media_Organiser_Notice_Components
             $output .= self::render_summary_counts_component($data['counts']);
         }
 
-        // Post info component (if we have post data)
-        if (isset($data['post'])) {
+        // Post info component only on list screen (not on post.php)
+        if ($is_list_screen && isset($data['post'])) {
             $output .= self::render_post_info_component($data['post']);
         }
 
