@@ -200,6 +200,9 @@ class WP_Media_Organiser_Admin
             return;
         }
 
+        // Add debug output
+        error_log('Preview notice being added for post: ' . $post_id);
+
         $notice_data = array(
             'post' => array(
                 'id' => $post_id,
@@ -228,7 +231,15 @@ class WP_Media_Organiser_Admin
             );
         }
 
-        echo CWP_Media_Organiser_Notice_Components::render_notice('pre-save', $notice_data, false); // false = not list screen
+        echo CWP_Media_Organiser_Notice_Components::render_notice('pre-save', $notice_data, false);
+
+        // Add inline script to ensure initialization
+        echo "<script>
+            jQuery(document).ready(function($) {
+                console.log('WP Media Organiser initialized');
+                console.log('Settings:', wpMediaOrganiser);
+            });
+        </script>";
     }
 
     /**
@@ -448,6 +459,17 @@ class WP_Media_Organiser_Admin
             '1.0.0',
             true
         );
+
+        // Add data for JavaScript
+        wp_localize_script('wp-media-organiser-preview', 'wpMediaOrganiser', array(
+            'postId' => get_the_ID(),
+            'settings' => array(
+                'taxonomyName' => $this->settings->get_setting('taxonomy_name'),
+                'postIdentifier' => $this->settings->get_setting('post_identifier'),
+            ),
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('wp_media_organiser_preview'),
+        ));
     }
 
     /**

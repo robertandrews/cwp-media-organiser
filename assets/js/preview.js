@@ -1,9 +1,6 @@
 jQuery(document).ready(function ($) {
-    var preview = $('#media-organiser-preview');
+    var preview = $('.media-organiser-notice[data-notice-type="pre-save"]');
     if (!preview.length) return;
-
-    // Show the preview notice
-    preview.show();
 
     // Function to get current post slug
     function getCurrentSlug() {
@@ -26,8 +23,73 @@ jQuery(document).ready(function ($) {
         return '';
     }
 
+    // Function to update media item status
+    function updateMediaItemStatus($item, currentPath, newPath, isUserChange) {
+        var $statusDot = $item.find('.status-dot');
+        var $operationSpan = $item.find('.component-operation');
+        var $pathSpan = $item.find('.component-path');
+
+        // If this is the initial load and item is in "correct" state, don't change anything
+        if (!isUserChange && $statusDot.hasClass('status-dot-correct')) {
+            // Store the initial path and settings for future comparisons
+            $item.data('original-path', newPath);
+            $item.data('original-identifier', wpMediaOrganiser.settings.postIdentifier);
+            console.log('Storing original state:', {
+                path: newPath,
+                identifier: wpMediaOrganiser.settings.postIdentifier
+            });
+            return;
+        }
+
+        // Normalize paths for comparison
+        var normalizedCurrent = currentPath.toLowerCase().replace(/\\/g, '/');
+        var normalizedNew = newPath.toLowerCase().replace(/\\/g, '/');
+        var normalizedOriginal = $item.data('original-path') ?
+            $item.data('original-path').toLowerCase().replace(/\\/g, '/') :
+            normalizedNew;
+
+        // Check if we're back to the original state
+        var isBackToOriginal = normalizedNew === normalizedOriginal &&
+            wpMediaOrganiser.settings.postIdentifier === $item.data('original-identifier');
+
+        console.log('Path comparison:', {
+            mediaId: $item.data('media-id'),
+            normalizedNew,
+            normalizedOriginal,
+            currentIdentifier: wpMediaOrganiser.settings.postIdentifier,
+            originalIdentifier: $item.data('original-identifier'),
+            isBackToOriginal
+        });
+
+        if (isBackToOriginal) {
+            // Back to original state - show as "correct"
+            console.log('Reverting to correct state'); // Debug log
+            $statusDot.removeClass('status-dot-moved status-dot-failed status-dot-skipped')
+                .addClass('status-dot-correct');
+            $operationSpan.removeClass('operation-move operation-fail operation-skip')
+                .addClass('operation-correct')
+                .text('Already in correct location:');
+            // Show only the preferred path
+            $pathSpan.html('<span class="component-path-single"><code>' + newPath + '</code></span>');
+        } else {
+            // Paths differ from original - "move" state
+            console.log('Switching to move state'); // Debug log
+            $statusDot.removeClass('status-dot-correct status-dot-failed status-dot-skipped')
+                .addClass('status-dot-moved');
+            $operationSpan.removeClass('operation-correct operation-fail operation-skip')
+                .addClass('operation-move')
+                .text('Will move from');
+            // Show both paths
+            $pathSpan.html('<span class="component-path-from-to"><code><del>' +
+                currentPath + '</del></code> to <code class="preview-path-' +
+                $item.data('media-id') + '">' + newPath + '</code></span>');
+        }
+    }
+
     // Function to update preview paths
-    function updatePreviewPaths() {
+    function updatePreviewPaths(isUserChange = false) {
+        console.log('Updating preview paths...', isUserChange ? 'User change' : 'Initial load'); // Debug log
+
         var data = {
             action: 'get_preview_paths',
             post_id: wpMediaOrganiser.postId,
@@ -49,21 +111,29 @@ jQuery(document).ready(function ($) {
             data.post_slug = getCurrentSlug();
         }
 
+        console.log('AJAX data:', data); // Debug log
+
         // Make AJAX call to get preview paths
         $.ajax({
             url: wpMediaOrganiser.ajaxurl,
             type: 'POST',
             data: data,
             success: function (response) {
+                console.log('AJAX response:', response); // Debug log
                 if (response.success && response.data) {
                     Object.keys(response.data).forEach(function (mediaId) {
-                        var selector = '.preview-path-' + mediaId;
-                        var element = $(selector);
-                        if (element.length) {
-                            element.html(response.data[mediaId]);
+                        var $mediaItem = $('.media-status-item[data-media-id="' + mediaId + '"]');
+                        if ($mediaItem.length) {
+                            // Get the current path from the existing markup
+                            var currentPath = $mediaItem.find('.component-path code:first').text();
+                            // Update status and paths
+                            updateMediaItemStatus($mediaItem, currentPath, response.data[mediaId], isUserChange);
                         }
                     });
                 }
+            },
+            error: function (xhr, status, error) {
+                console.error('AJAX error:', status, error); // Debug log
             }
         });
     }
@@ -71,20 +141,25 @@ jQuery(document).ready(function ($) {
     // Set up event listeners based on settings
     if (wpMediaOrganiser.settings.taxonomyName) {
         var taxonomyBox = $('#taxonomy-' + wpMediaOrganiser.settings.taxonomyName);
-        taxonomyBox.on('change', 'input[type="checkbox"], input[type="radio"]', updatePreviewPaths);
+        taxonomyBox.on('change', 'input[type="checkbox"], input[type="radio"]', function () {
+            console.log('Taxonomy changed'); // Debug log
+            updatePreviewPaths(true);
+        });
     }
 
     if (wpMediaOrganiser.settings.postIdentifier === 'slug') {
         // Listen for real-time changes in the slug editor
         $(document).on('input keyup', '#new-post-slug', function (e) {
-            updatePreviewPaths();
+            console.log('Slug changed'); // Debug log
+            updatePreviewPaths(true);
         });
 
         // Listen for any changes to the full slug
         var observer = new MutationObserver(function (mutations) {
             mutations.forEach(function (mutation) {
                 if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                    updatePreviewPaths();
+                    console.log('Slug mutation detected'); // Debug log
+                    updatePreviewPaths(true);
                 }
             });
         });
@@ -100,18 +175,21 @@ jQuery(document).ready(function ($) {
 
         // Listen for the WordPress permalink editor buttons
         $(document).on('click', '#edit-slug-buttons button', function (e) {
+            console.log('Permalink button clicked'); // Debug log
             // Wait for WordPress to update the UI
-            setTimeout(updatePreviewPaths, 100);
+            setTimeout(function () { updatePreviewPaths(true); }, 100);
         });
 
         // Listen for WordPress's permalink update event
         $(document).on('ajaxSuccess', function (event, xhr, settings) {
             if (settings.data && settings.data.indexOf('action=sample-permalink') !== -1) {
-                setTimeout(updatePreviewPaths, 100);
+                console.log('WordPress permalink updated'); // Debug log
+                setTimeout(function () { updatePreviewPaths(true); }, 100);
             }
         });
     }
 
-    // Initial update
-    updatePreviewPaths();
+    // Initial update - not a user change
+    console.log('Initial update'); // Debug log
+    updatePreviewPaths(false);
 }); 
