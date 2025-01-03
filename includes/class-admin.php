@@ -38,11 +38,6 @@ class WP_Media_Organiser_Admin
         $this->processor = $processor;
         $this->logger = WP_Media_Organiser_Logger::get_instance();
 
-        // Add settings page
-        add_action('admin_menu', array($this, 'add_admin_menu'));
-        add_action('admin_init', array($this, 'register_settings'));
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
-
         // Add bulk actions
         add_filter('bulk_actions-edit-post', array($this, 'register_bulk_actions'));
         add_filter('bulk_actions-edit-page', array($this, 'register_bulk_actions'));
@@ -596,68 +591,5 @@ class WP_Media_Organiser_Admin
         }
 
         wp_send_json_success($preview_paths);
-    }
-
-    /**
-     * Add the admin menu item
-     */
-    public function add_admin_menu()
-    {
-        add_submenu_page(
-            'upload.php',
-            __('Media Organiser Settings', 'wp-media-organiser'),
-            __('Media Organiser', 'wp-media-organiser'),
-            'manage_options',
-            'wp-media-organiser',
-            array($this, 'render_settings_page')
-        );
-    }
-
-    /**
-     * Register settings
-     */
-    public function register_settings()
-    {
-        // Registration will be handled directly through our custom table
-    }
-
-    /**
-     * Enqueue admin scripts
-     */
-    public function enqueue_admin_scripts($hook)
-    {
-        if ('media_page_wp-media-organiser' !== $hook) {
-            return;
-        }
-
-        wp_enqueue_style(
-            'wp-media-organiser-admin',
-            $this->plugin_url . 'assets/css/admin.css',
-            array(),
-            '1.0.0'
-        );
-
-        wp_enqueue_script(
-            'wp-media-organiser-admin',
-            $this->plugin_url . 'assets/js/admin.js',
-            array('jquery'),
-            '1.0.0',
-            true
-        );
-
-        // Add data for JavaScript
-        wp_localize_script('wp-media-organiser-admin', 'wpMediaOrganiser', array(
-            'postTypes' => $this->settings->get_valid_post_types(),
-            'uploadsPath' => '/wp-content/uploads',
-            'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
-        ));
-    }
-
-    /**
-     * Render the settings page
-     */
-    public function render_settings_page()
-    {
-        include plugin_dir_path(dirname(__FILE__)) . 'templates/settings-page.php';
     }
 }

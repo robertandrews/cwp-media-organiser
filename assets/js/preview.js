@@ -78,10 +78,10 @@ jQuery(document).ready(function ($) {
                 .addClass('status-dot-moved');
             $operationSpan.removeClass('operation-correct operation-fail operation-skip')
                 .addClass('operation-move')
-                .text('Will move from');
+                .text('Will move');
             // Show both paths
-            $pathSpan.html('<span class="component-path-from-to"><code><del>' +
-                currentPath + '</del></code> to <code class="preview-path-' +
+            $pathSpan.html('<br><span class="component-path-from-to">From: <code><del>' +
+                currentPath + '</del></code><br>To: <code class="preview-path-' +
                 $item.data('media-id') + '">' + newPath + '</code></span>');
         }
     }

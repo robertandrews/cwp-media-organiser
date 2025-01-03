@@ -250,14 +250,14 @@ class CWP_Media_Organiser_Notice_Components
         // For any other status, show both current and preferred paths
         if ($notice_type === 'pre-save') {
             return sprintf(
-                '<span class="component-path-from-to"><code><del>%s</del></code> to <code class="preview-path-%d">%s</code></span>',
+                '<span class="component-path-from-to">From: <code><del>%s</del></code><br>To: <code class="preview-path-%d">%s</code></span>',
                 esc_html($item['current_path']),
                 $item['id'],
                 $item['preferred_path']
             );
         } else {
             return sprintf(
-                '<span class="component-path-from-to"><code><del>%s</del></code> to <code>%s</code></span>',
+                '<span class="component-path-from-to">From: <code><del>%s</del></code><br>To: <code>%s</code></span>',
                 esc_html($item['current_path']),
                 $item['preferred_path']
             );
