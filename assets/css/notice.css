@@ -90,3 +90,19 @@
     display: inline-block !important;
     border-radius: 4px !important;
 }
+
+/* Path Display */
+.component-path-from-to {
+    display: block;
+    /* line-height: 1.6; */
+}
+
+.component-path-from-to code {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+    padding: 4px 6px !important;
+}
+
+.component-path-single code {
+    padding: 4px 6px !important;
+}

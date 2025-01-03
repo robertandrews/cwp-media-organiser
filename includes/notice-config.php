@@ -33,15 +33,15 @@ class CWP_Media_Organiser_Notice_Config
     // Operation text templates
     const OPERATION_TEXT = [
         'pre-save' => [
-            'correct' => 'Already in correct location:',
-            'move' => 'Will move from',
-            'fail' => 'Cannot move from',
-            'skip' => 'Will skip:',
+            'correct' => 'Correct location:',
+            'move' => 'Will move',
+            'fail' => 'Cannot move',
+            'skip' => 'Will skip',
         ],
         'post-save' => [
-            'correct' => 'Already in correct location:',
-            'move' => 'Moved from',
-            'fail' => 'Failed to move from',
+            'correct' => 'Correct location:',
+            'move' => 'Moved',
+            'fail' => 'Failed to move',
             'skip' => 'Skipped:',
         ],
     ];
