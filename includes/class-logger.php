@@ -25,8 +25,8 @@ class WP_Media_Organiser_Logger
         $plugin_dir = plugin_dir_path(dirname(__FILE__));
         $this->log_file = $plugin_dir . 'wp-media-organiser.log';
 
-        // Set minimum log level to INFO (suppressing DEBUG)
-        $this->min_level = $this->levels['INFO'];
+        // Set minimum log level to DEBUG
+        $this->min_level = $this->levels['DEBUG'];
 
         // Ensure the log file is writable
         if (!file_exists($this->log_file)) {

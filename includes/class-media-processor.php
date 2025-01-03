@@ -26,6 +26,23 @@ class WP_Media_Organiser_Processor
             return;
         }
 
+        // Log the call stack to identify where this is being called from
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        $call_stack = array_map(function ($trace) {
+            return isset($trace['class'])
+            ? $trace['class'] . '::' . $trace['function']
+            : (isset($trace['file'])
+                ? basename($trace['file']) . ':' . $trace['function']
+                : $trace['function']);
+        }, $backtrace);
+
+        $this->logger->log("Media reorganization triggered for post {$post_id}. Call stack:", 'debug');
+        $this->logger->log("  " . implode(" -> ", array_reverse($call_stack)), 'debug');
+        $this->logger->log("  Action: " . (current_action() ?: 'unknown'), 'debug');
+        $this->logger->log("  Is AJAX: " . (wp_doing_ajax() ? 'yes' : 'no'), 'debug');
+        $this->logger->log("  Is Admin: " . (is_admin() ? 'yes' : 'no'), 'debug');
+        $this->logger->log("  Current filter: " . (current_filter() ?: 'none'), 'debug');
+
         // Skip if not a valid post type
         $valid_types = array_keys($this->settings->get_valid_post_types());
         if (!in_array($post->post_type, $valid_types)) {
@@ -120,21 +137,24 @@ class WP_Media_Organiser_Processor
      * @param int $attachment_id The attachment ID
      * @param int $post_id The post ID
      * @param WP_Post|null $temp_post Optional temporary post object for path generation
+     * @param string $context The context of the path generation (e.g., 'move' or 'preview')
      * @return string|false The new file path or false if it cannot be generated
      */
-    public function get_new_file_path($attachment_id, $post_id, $temp_post = null)
+    public function get_new_file_path($attachment_id, $post_id, $temp_post = null, $context = 'move')
     {
         $upload_dir = wp_upload_dir();
         $file_info = pathinfo(get_attached_file($attachment_id));
         $post = $temp_post ?: get_post($post_id);
 
-        // Debug post object
-        $this->logger->log("Post object details:", 'info');
-        $this->logger->log("Post ID: " . $post->ID, 'info');
-        $this->logger->log("Post title: " . $post->post_title, 'info');
-        $this->logger->log("Post name: " . $post->post_name, 'info');
-        $this->logger->log("Post status: " . $post->post_status, 'info');
-        $this->logger->log("Post type: " . $post->post_type, 'info');
+        // Only log details for actual moves, not previews
+        if ($context === 'move') {
+            $this->logger->log("Post object details:", 'info');
+            $this->logger->log("Post ID: " . $post->ID, 'info');
+            $this->logger->log("Post title: " . $post->post_title, 'info');
+            $this->logger->log("Post name: " . $post->post_name, 'info');
+            $this->logger->log("Post status: " . $post->post_status, 'info');
+            $this->logger->log("Post type: " . $post->post_type, 'info');
+        }
 
         $path_parts = array();
 
@@ -167,28 +187,38 @@ class WP_Media_Organiser_Processor
             $path_parts[] = date('m', $time);
         }
 
-        // Add post identifier if set (moved after date structure)
+        // Add post identifier if set
         $post_identifier = $this->settings->get_setting('post_identifier');
-        $this->logger->log("Post identifier setting: " . $post_identifier, 'info');
+        if ($context === 'move') {
+            $this->logger->log("Post identifier setting: " . $post_identifier, 'info');
+        }
 
         if ($post_identifier === 'slug') {
             // Get the post slug, or generate one from title if it's empty (draft posts)
             $slug = $post->post_name;
             if (empty($slug)) {
                 $slug = sanitize_title($post->post_title);
-                $this->logger->log("Generated temporary slug from title: " . $slug, 'info');
+                if ($context === 'move') {
+                    $this->logger->log("Generated temporary slug from title: " . $slug, 'info');
+                }
             }
             if (!empty($slug)) {
                 $path_parts[] = $slug;
-                $this->logger->log("Added slug to path parts: " . $slug, 'info');
+                if ($context === 'move') {
+                    $this->logger->log("Added slug to path parts: " . $slug, 'info');
+                }
             }
         } elseif ($post_identifier === 'id') {
             $path_parts[] = $post_id;
-            $this->logger->log("Added ID to path parts: " . $post_id, 'info');
+            if ($context === 'move') {
+                $this->logger->log("Added ID to path parts: " . $post_id, 'info');
+            }
         }
 
-        // Log the final path parts array
-        $this->logger->log("Path parts array: " . print_r($path_parts, true), 'info');
+        // Log the final path parts array only for actual moves
+        if ($context === 'move') {
+            $this->logger->log("Path parts array: " . print_r($path_parts, true), 'info');
+        }
 
         // Combine parts and add filename
         $path = implode('/', array_filter($path_parts));
@@ -205,7 +235,14 @@ class WP_Media_Organiser_Processor
 
         // Move the file
         if (@rename($old_file, $new_file)) {
-            // Update attachment metadata
+            $this->logger->log("Successfully moved file from '$old_file' to '$new_file'", 'info');
+
+            // Log the database update for _wp_attached_file
+            $old_attached_file = get_post_meta($attachment_id, '_wp_attached_file', true);
+            $new_attached_file = str_replace(wp_upload_dir()['basedir'] . '/', '', $new_file);
+            $this->logger->log("Updating _wp_attached_file meta:", 'info');
+            $this->logger->log("  From: $old_attached_file", 'info');
+            $this->logger->log("  To: $new_attached_file", 'info');
             update_attached_file($attachment_id, $new_file);
 
             // Update metadata sizes
@@ -213,22 +250,30 @@ class WP_Media_Organiser_Processor
             if (is_array($metadata) && isset($metadata['sizes'])) {
                 $old_dir = dirname($old_file);
                 $new_dir = dirname($new_file);
+                $this->logger->log("Updating image sizes in wp_postmeta:", 'info');
 
                 foreach ($metadata['sizes'] as $size => $sizeinfo) {
                     $old_size_path = $old_dir . '/' . $sizeinfo['file'];
                     $new_size_path = $new_dir . '/' . $sizeinfo['file'];
 
                     if (file_exists($old_size_path)) {
+                        $this->logger->log("  Moving size '$size' from '$old_size_path' to '$new_size_path'", 'info');
                         @rename($old_size_path, $new_size_path);
                     }
                 }
             }
 
-            // Update attachment metadata
+            // Log the metadata update
+            $this->logger->log("Updating _wp_attachment_metadata in wp_postmeta", 'info');
             wp_update_attachment_metadata($attachment_id, $metadata);
 
             // Update URLs in post content
             $this->update_post_content_urls($attachment_id, $old_file, $new_file);
+
+            return true;
+        } else {
+            $this->logger->log("Failed to move file from '$old_file' to '$new_file'", 'error');
+            return false;
         }
     }
 
@@ -396,6 +441,9 @@ class WP_Media_Organiser_Processor
                     'items' => array(),
                 );
 
+                $this->logger->log("Starting media reorganization for post: '{$post->post_title}' (ID: $post_id)", 'info');
+                $this->logger->log("Found " . count($media_files) . " media files associated with post '{$post->post_title}'", 'info');
+
                 foreach ($media_files as $attachment_id => $file) {
                     $attachment = get_post($attachment_id);
                     $new_path = $this->get_new_file_path($attachment_id, $post_id, $post);
@@ -422,24 +470,36 @@ class WP_Media_Organiser_Processor
                             $attachment->post_title,
                             esc_html($file)
                         );
+                        $this->logger->log("Media file already in correct location: '{$attachment->post_title}' at $file", 'info');
                     } else {
-                        $this->move_media_file($attachment_id, $file, $new_path);
-                        $files_moved = true;
-                        $results['success']++;
-                        $post_message['items'][] = sprintf(
-                            'Media ID %d ("%s"): Moved from <del><code>%s</code></del> to <code>%s</code>',
-                            $attachment_id,
-                            $attachment->post_title,
-                            esc_html($file),
-                            esc_html($new_path)
-                        );
+                        $this->logger->log("Moving media file '{$attachment->post_title}' (ID: $attachment_id)", 'info');
+                        $this->logger->log("  From: $file", 'info');
+                        $this->logger->log("  To: $new_path", 'info');
+
+                        if ($this->move_media_file($attachment_id, $file, $new_path)) {
+                            $files_moved = true;
+                            $results['success']++;
+                            $post_message['items'][] = sprintf(
+                                'Media ID %d ("%s"): Moved from <del><code>%s</code></del> to <code>%s</code>',
+                                $attachment_id,
+                                $attachment->post_title,
+                                esc_html($file),
+                                esc_html($new_path)
+                            );
+                        } else {
+                            $results['failed']++;
+                            $post_message['items'][] = sprintf(
+                                'Media ID %d ("%s"): Failed to move from <code>%s</code> to <code>%s</code>',
+                                $attachment_id,
+                                $attachment->post_title,
+                                esc_html($file),
+                                esc_html($new_path)
+                            );
+                        }
                     }
                 }
 
-                if (count($media_files) === 0) {
-                    $post_message['items'][] = "No media files found";
-                }
-
+                $this->logger->log("Completed media reorganization for post: '{$post->post_title}' (ID: $post_id)", 'info');
                 $results['post_messages'][] = $post_message;
 
             } catch (Exception $e) {

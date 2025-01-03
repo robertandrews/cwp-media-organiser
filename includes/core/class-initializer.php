@@ -45,7 +45,7 @@ class WP_Media_Organiser_Initializer
     private function init_hooks()
     {
         // Initialize hooks
-        add_action('save_post', array($this->processor, 'reorganize_media'), 10, 3);
+        // Removing duplicate save_post hook as it's handled in admin class
     }
 
     public function get_settings()

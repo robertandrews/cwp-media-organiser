@@ -15,29 +15,33 @@ class WP_Media_Organiser_Admin
     private static $instance = null;
     private $plugin_path;
     private $plugin_url;
+    private static $is_processing = false;
 
     public static function get_instance()
     {
         if (null === self::$instance) {
-            self::$instance = new self();
+            // Get dependencies from initializer
+            $initializer = WP_Media_Organiser_Initializer::get_instance();
+            $settings = $initializer->get_settings();
+            $processor = new WP_Media_Organiser_Processor($settings);
+            $plugin_url = plugin_dir_url(dirname(__FILE__));
+
+            self::$instance = new self($plugin_url, $settings, $processor);
         }
         return self::$instance;
     }
 
-    private function __construct()
+    private function __construct($plugin_url, $settings, $processor)
     {
-        global $wpdb;
-
-        $this->plugin_path = plugin_dir_path(dirname(__FILE__));
-        $this->plugin_url = plugin_dir_url(dirname(__FILE__));
+        $this->plugin_url = $plugin_url;
+        $this->settings = $settings;
+        $this->processor = $processor;
         $this->logger = WP_Media_Organiser_Logger::get_instance();
 
-        // Get settings instance from initializer
-        $initializer = WP_Media_Organiser_Initializer::get_instance();
-        $this->settings = $initializer->get_settings();
-
-        // Initialize processor
-        $this->processor = new WP_Media_Organiser_Processor($this->settings);
+        // Add settings page
+        add_action('admin_menu', array($this, 'add_admin_menu'));
+        add_action('admin_init', array($this, 'register_settings'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
 
         // Add bulk actions
         add_filter('bulk_actions-edit-post', array($this, 'register_bulk_actions'));
@@ -47,15 +51,114 @@ class WP_Media_Organiser_Admin
 
         // Add admin notices
         add_action('admin_notices', array($this, 'bulk_action_admin_notice'));
-        add_action('admin_notices', array($this, 'post_update_admin_notice'));
         add_action('edit_form_after_title', array($this, 'add_preview_notice'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_preview_scripts'));
 
-        // Handle post updates
-        add_action('post_updated', array($this, 'handle_post_update'), 10, 3);
+        // Handle media reorganization on legitimate post saves
+        add_action('save_post', array($this, 'handle_save_post'), 10, 3);
 
-        // Add AJAX handlers
+        // Add AJAX handlers for preview
         add_action('wp_ajax_get_preview_paths', array($this, 'ajax_get_preview_paths'));
+    }
+
+    /**
+     * Handle media reorganization on post save
+     */
+    public function handle_save_post($post_id, $post, $update)
+    {
+        $this->logger->log("=== Starting handle_save_post ===", 'debug');
+        $this->logger->log("Post ID: $post_id", 'debug');
+        $this->logger->log("Post Type: {$post->post_type}", 'debug');
+        $this->logger->log("Post Status: {$post->post_status}", 'debug');
+        $this->logger->log("Is Update: " . ($update ? 'yes' : 'no'), 'debug');
+        $this->logger->log("Current Action: " . current_action(), 'debug');
+        $this->logger->log("Current Filter: " . current_filter(), 'debug');
+        $this->logger->log("Is AJAX: " . (wp_doing_ajax() ? 'yes' : 'no'), 'debug');
+        $this->logger->log("Is REST: " . ((defined('REST_REQUEST') && REST_REQUEST) ? 'yes' : 'no'), 'debug');
+        $this->logger->log("Is Autosave: " . ((defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) ? 'yes' : 'no'), 'debug');
+        $this->logger->log("Backtrace:", 'debug');
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        foreach ($backtrace as $index => $trace) {
+            $caller = isset($trace['class']) ? "{$trace['class']}::{$trace['function']}" : $trace['function'];
+            $file = isset($trace['file']) ? basename($trace['file']) : 'unknown';
+            $line = isset($trace['line']) ? $trace['line'] : 'unknown';
+            $this->logger->log("  #{$index} {$caller} in {$file}:{$line}", 'debug');
+        }
+
+        // Skip if this is an autosave
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            $this->logger->log("Skipping: This is an autosave", 'debug');
+            return;
+        }
+
+        // Skip if this is a revision
+        if (wp_is_post_revision($post_id)) {
+            $this->logger->log("Skipping: This is a revision", 'debug');
+            return;
+        }
+
+        // Skip auto-drafts
+        if ($post->post_status === 'auto-draft') {
+            $this->logger->log("Skipping: This is an auto-draft", 'debug');
+            return;
+        }
+
+        // Skip built-in post types that we don't want to process
+        $built_in_skip_types = array('revision', 'attachment', 'nav_menu_item', 'customize_changeset', 'custom_css');
+        if (in_array($post->post_type, $built_in_skip_types)) {
+            $this->logger->log("Skipping: Post type {$post->post_type} is in skip list", 'debug');
+            return;
+        }
+
+        // Skip if not a valid post type
+        $valid_types = array_keys($this->settings->get_valid_post_types());
+        if (!in_array($post->post_type, $valid_types)) {
+            $this->logger->log("Skipping: Post type {$post->post_type} is not in valid types list", 'debug');
+            return;
+        }
+
+        // Skip if this is an AJAX request (preview updates)
+        if (wp_doing_ajax()) {
+            $this->logger->log("Skipping: This is an AJAX request", 'debug');
+            return;
+        }
+
+        // Skip if this is a REST API request (Gutenberg)
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            $this->logger->log("Skipping: This is a REST API request", 'debug');
+            return;
+        }
+
+        // Skip if this is a post update without actual content changes or taxonomy changes
+        if ($update) {
+            $old_post = get_post($post_id);
+            $taxonomy_name = $this->settings->get_setting('taxonomy_name');
+
+            // Get old and new terms
+            $old_terms = $taxonomy_name ? get_the_terms($post_id, $taxonomy_name) : array();
+            $old_term_id = $old_terms && !is_wp_error($old_terms) ? reset($old_terms)->term_id : 0;
+
+            // Check if anything relevant has changed
+            if ($old_post &&
+                $old_post->post_content === $post->post_content &&
+                $old_post->post_title === $post->post_title &&
+                $old_post->post_status === $post->post_status &&
+                $old_post->post_name === $post->post_name &&
+                $old_term_id === (isset($_POST['tax_input'][$taxonomy_name]) ? (int) $_POST['tax_input'][$taxonomy_name] : 0)) {
+                $this->logger->log("Skipping: No relevant content or taxonomy changes detected", 'debug');
+                return;
+            }
+        }
+
+        $this->logger->log("=== Proceeding with media reorganization ===", 'debug');
+
+        // Process the media reorganization
+        $results = $this->processor->bulk_reorganize_media(array($post_id));
+
+        // Store results in a transient specific to this post
+        set_transient('wp_media_organiser_post_' . $post_id, $results, 30);
+
+        $this->logger->log("=== Completed handle_save_post ===", 'debug');
     }
 
     /**
@@ -200,9 +303,6 @@ class WP_Media_Organiser_Admin
             return;
         }
 
-        // Add debug output
-        error_log('Preview notice being added for post: ' . $post_id);
-
         $notice_data = array(
             'post' => array(
                 'id' => $post_id,
@@ -214,7 +314,7 @@ class WP_Media_Organiser_Admin
 
         foreach ($media_files as $attachment_id => $current_path) {
             $attachment = get_post($attachment_id);
-            $preferred_path = $this->processor->get_new_file_path($attachment_id, $post_id);
+            $preferred_path = $this->processor->get_new_file_path($attachment_id, $post_id, null, 'preview');
             $normalized_preferred = strtolower(str_replace('\\', '/', $preferred_path));
             $normalized_current = strtolower(str_replace('\\', '/', $current_path));
 
@@ -232,14 +332,6 @@ class WP_Media_Organiser_Admin
         }
 
         echo CWP_Media_Organiser_Notice_Components::render_notice('pre-save', $notice_data, false);
-
-        // Add inline script to ensure initialization
-        echo "<script>
-            jQuery(document).ready(function($) {
-                console.log('WP Media Organiser initialized');
-                console.log('Settings:', wpMediaOrganiser);
-            });
-        </script>";
     }
 
     /**
@@ -422,28 +514,6 @@ class WP_Media_Organiser_Admin
     }
 
     /**
-     * Handle post updates and reorganize media if needed
-     */
-    public function handle_post_update($post_id, $post_after, $post_before)
-    {
-        // Skip if this is an autosave
-        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-            return;
-        }
-
-        // Skip if this is a revision
-        if (wp_is_post_revision($post_id)) {
-            return;
-        }
-
-        // Process the media reorganization
-        $results = $this->processor->bulk_reorganize_media(array($post_id));
-
-        // Store results in a transient specific to this post
-        set_transient('wp_media_organiser_post_' . $post_id, $results, 30);
-    }
-
-    /**
      * Enqueue scripts for the preview functionality
      */
     public function enqueue_preview_scripts($hook)
@@ -518,13 +588,76 @@ class WP_Media_Organiser_Admin
 
         $preview_paths = array();
         foreach ($media_files as $attachment_id => $current_path) {
-            // Pass the temporary post to get_new_file_path
-            $new_path = $this->processor->get_new_file_path($attachment_id, $post_id, $temp_post);
+            // Pass the temporary post to get_new_file_path with preview context
+            $new_path = $this->processor->get_new_file_path($attachment_id, $post_id, $temp_post, 'preview');
             if ($new_path) {
                 $preview_paths[$attachment_id] = $this->color_code_path_components($new_path);
             }
         }
 
         wp_send_json_success($preview_paths);
+    }
+
+    /**
+     * Add the admin menu item
+     */
+    public function add_admin_menu()
+    {
+        add_submenu_page(
+            'upload.php',
+            __('Media Organiser Settings', 'wp-media-organiser'),
+            __('Media Organiser', 'wp-media-organiser'),
+            'manage_options',
+            'wp-media-organiser',
+            array($this, 'render_settings_page')
+        );
+    }
+
+    /**
+     * Register settings
+     */
+    public function register_settings()
+    {
+        // Registration will be handled directly through our custom table
+    }
+
+    /**
+     * Enqueue admin scripts
+     */
+    public function enqueue_admin_scripts($hook)
+    {
+        if ('media_page_wp-media-organiser' !== $hook) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'wp-media-organiser-admin',
+            $this->plugin_url . 'assets/css/admin.css',
+            array(),
+            '1.0.0'
+        );
+
+        wp_enqueue_script(
+            'wp-media-organiser-admin',
+            $this->plugin_url . 'assets/js/admin.js',
+            array('jquery'),
+            '1.0.0',
+            true
+        );
+
+        // Add data for JavaScript
+        wp_localize_script('wp-media-organiser-admin', 'wpMediaOrganiser', array(
+            'postTypes' => $this->settings->get_valid_post_types(),
+            'uploadsPath' => '/wp-content/uploads',
+            'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
+        ));
+    }
+
+    /**
+     * Render the settings page
+     */
+    public function render_settings_page()
+    {
+        include plugin_dir_path(dirname(__FILE__)) . 'templates/settings-page.php';
     }
 }
