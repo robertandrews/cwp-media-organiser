@@ -532,6 +532,7 @@ class WP_Media_Organiser_Admin
                 'taxonomyName' => $this->settings->get_setting('taxonomy_name'),
                 'postIdentifier' => $this->settings->get_setting('post_identifier'),
             ),
+            'noticeConfig' => CWP_Media_Organiser_Notice_Config::get_js_config(),
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wp_media_organiser_preview'),
         ));

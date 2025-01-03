@@ -28,9 +28,10 @@ jQuery(document).ready(function ($) {
         var $statusDot = $item.find('.status-dot');
         var $operationSpan = $item.find('.component-operation');
         var $pathSpan = $item.find('.component-path');
+        var noticeType = 'pre-save';
 
         // If this is the initial load and item is in "correct" state, don't change anything
-        if (!isUserChange && $statusDot.hasClass('status-dot-correct')) {
+        if (!isUserChange && $statusDot.hasClass(wpMediaOrganiser.noticeConfig.status_types.correct.dot_class)) {
             // Store the initial path and settings for future comparisons
             $item.data('original-path', newPath);
             $item.data('original-identifier', wpMediaOrganiser.settings.postIdentifier);
@@ -61,26 +62,24 @@ jQuery(document).ready(function ($) {
             isBackToOriginal
         });
 
-        if (isBackToOriginal) {
-            // Back to original state - show as "correct"
-            console.log('Reverting to correct state'); // Debug log
-            $statusDot.removeClass('status-dot-moved status-dot-failed status-dot-skipped')
-                .addClass('status-dot-correct');
-            $operationSpan.removeClass('operation-move operation-fail operation-skip')
-                .addClass('operation-correct')
-                .text('Already in correct location:');
+        var status = isBackToOriginal ? 'correct' : 'move';
+        var statusConfig = wpMediaOrganiser.noticeConfig.status_types[status];
+        var operationText = wpMediaOrganiser.noticeConfig.operation_text[noticeType][status];
+
+        // Update status classes and text
+        $statusDot.removeClass(Object.values(wpMediaOrganiser.noticeConfig.status_types).map(c => c.dot_class).join(' '))
+            .addClass(statusConfig.dot_class);
+        $operationSpan.removeClass(Object.values(wpMediaOrganiser.noticeConfig.status_types).map(c => c.operation_class).join(' '))
+            .addClass(statusConfig.operation_class)
+            .text(operationText);
+
+        // Update path display
+        if (status === 'correct') {
             // Show only the preferred path
             $pathSpan.html('<span class="component-path-single"><code>' + newPath + '</code></span>');
         } else {
-            // Paths differ from original - "move" state
-            console.log('Switching to move state'); // Debug log
-            $statusDot.removeClass('status-dot-correct status-dot-failed status-dot-skipped')
-                .addClass('status-dot-moved');
-            $operationSpan.removeClass('operation-correct operation-fail operation-skip')
-                .addClass('operation-move')
-                .text('Will move');
             // Show both paths
-            $pathSpan.html('<br><span class="component-path-from-to">From: <code><del>' +
+            $pathSpan.html('<span class="component-path-from-to">From: <code><del>' +
                 currentPath + '</del></code><br>To: <code class="preview-path-' +
                 $item.data('media-id') + '">' + newPath + '</code></span>');
         }

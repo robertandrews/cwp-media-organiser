@@ -4,8 +4,28 @@ if (!defined('WPINC')) {
     die;
 }
 
+require_once plugin_dir_path(__FILE__) . 'notice-config.php';
+
 class CWP_Media_Organiser_Notice_Components
 {
+    private static $styles_enqueued = false;
+
+    /**
+     * Ensure notice styles are enqueued
+     */
+    private static function ensure_styles()
+    {
+        if (!self::$styles_enqueued) {
+            wp_enqueue_style(
+                'wp-media-organiser-notice',
+                plugin_dir_url(dirname(__FILE__)) . 'assets/css/notice.css',
+                array(),
+                filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/notice.css')
+            );
+            self::$styles_enqueued = true;
+        }
+    }
+
     /**
      * Render the notice container
      *
@@ -16,15 +36,15 @@ class CWP_Media_Organiser_Notice_Components
      */
     public static function render_notice($type, $data, $is_list_screen = false)
     {
+        // Ensure styles are loaded before rendering
+        self::ensure_styles();
+
         $notice_class = $type === 'pre-save' ? 'notice-warning' : 'notice-info';
         $output = sprintf(
             '<div class="notice %s is-dismissible media-organiser-notice" data-notice-type="%s">',
             esc_attr($notice_class),
             esc_attr($type)
         );
-
-        // Add common styles
-        $output .= self::get_notice_styles();
 
         // Title component is always present
         $output .= self::render_title_component($type);
@@ -49,44 +69,6 @@ class CWP_Media_Organiser_Notice_Components
     }
 
     /**
-     * Get common notice styles
-     */
-    private static function get_notice_styles()
-    {
-        return '<style>
-            .media-organiser-notice { padding: 10px 12px; }
-            .media-organiser-notice .notice-title { font-size: inherit; margin: 0 0 5px; }
-            .media-status-item { display: flex; align-items: flex-start; margin-bottom: 5px; }
-            .media-status-item img { width: 36px; height: 36px; object-fit: cover; margin-right: 10px; }
-            .media-status-item .status-text { flex: 1; padding-bottom: 8px; }
-            .status-dot { margin-right: 5px; }
-            .status-dot-moved { color: #ffb900; }
-            .status-dot-correct { color: #46b450; }
-            .status-dot-failed { color: #dc3232; }
-            .status-dot-skipped { color: #888888; }
-            .status-dot-preview { color: #ffb900; }
-            .summary-counts span { margin-right: 15px; }
-            /* Operation status styles */
-            .component-operation.operation-correct { color: #46b450; }
-            .component-operation.operation-move { color: #ffb900; }
-            .component-operation.operation-fail { color: #dc3232; }
-            .component-operation.operation-skip { color: #888888; }
-            /* Path component styles */
-            .path-component { padding: 2px 4px; border-radius: 2px; }
-            .path-post-type { background-color: #ffebee; color: #c62828; }
-            .path-taxonomy { background-color: #e8f5e9; color: #2e7d32; }
-            .path-term { background-color: #e3f2fd; color: #1565c0; }
-            .path-post-identifier { background-color: #fff3e0; color: #ef6c00; }
-            code {
-                background: #f5f5f5 !important;
-                margin: 0 !important;
-                display: inline-block !important;
-                border-radius: 4px !important;
-            }
-        </style>';
-    }
-
-    /**
      * Render the title component
      */
     private static function render_title_component($type)
@@ -103,33 +85,7 @@ class CWP_Media_Organiser_Notice_Components
      */
     private static function get_operation_text($status, $notice_type)
     {
-        if ($notice_type === 'pre-save') {
-            switch ($status) {
-                case 'correct':
-                    return 'Already in correct location:';
-                case 'move':
-                    return 'Will move from';
-                case 'fail':
-                    return 'Cannot move from';
-                case 'skip':
-                    return 'Will skip:';
-                default:
-                    return '';
-            }
-        } else {
-            switch ($status) {
-                case 'correct':
-                    return 'Already in correct location:';
-                case 'move':
-                    return 'Moved from';
-                case 'fail':
-                    return 'Failed to move from';
-                case 'skip':
-                    return 'Skipped:';
-                default:
-                    return '';
-            }
-        }
+        return CWP_Media_Organiser_Notice_Config::OPERATION_TEXT[$notice_type][$status] ?? '';
     }
 
     /**
@@ -137,14 +93,7 @@ class CWP_Media_Organiser_Notice_Components
      */
     private static function get_status_class($status)
     {
-        $status_map = [
-            'correct' => 'status-dot-correct',
-            'move' => 'status-dot-moved',
-            'fail' => 'status-dot-failed',
-            'skip' => 'status-dot-skipped',
-        ];
-
-        return isset($status_map[$status]) ? $status_map[$status] : 'status-dot-correct';
+        return CWP_Media_Organiser_Notice_Config::STATUS_TYPES[$status]['dot_class'] ?? 'status-dot-correct';
     }
 
     /**
