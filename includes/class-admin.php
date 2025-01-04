@@ -411,7 +411,7 @@ class WP_Media_Organiser_Admin
     {
         $pre_save_text = array(
             'correct' => 'Already in correct location:',
-            'will_move' => 'Will move',
+            'will_move' => 'Will move to preferred path',
             'will_fail' => 'Cannot move from',
             'will_skip' => 'Will skip:',
         );
