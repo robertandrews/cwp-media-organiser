@@ -1,0 +1,15 @@
+<!-- Path display wrapper component -->
+<div class="path-display{{#is_dynamic}} dynamic{{/is_dynamic}}">
+    {{#show_current_path}}
+        {{> components/component-path-wrong}}
+        <span class="path-arrow">↓</span>
+    {{/show_current_path}}
+    
+    {{#is_correct}}
+        {{> components/component-path-preferred-correct}}
+    {{/is_correct}}
+    
+    {{#needs_move}}
+        {{> components/component-path-preferred-move}}
+    {{/needs_move}}
+</div> 

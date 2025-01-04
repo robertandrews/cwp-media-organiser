@@ -38,8 +38,10 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     'component-media-item',
                     'component-thumbnail',
                     'component-operation-status',
-                    'component-path-display-static',
-                    'component-path-display-dynamic',
+                    'component-path-display',
+                    'component-path-wrong',
+                    'component-path-preferred-correct',
+                    'component-path-preferred-move',
                     'component-error-message'
                 ];
 
@@ -123,18 +125,14 @@ if (typeof window.NoticeRenderer === 'undefined') {
                         console.log('Rendering operation status component with data:', item);
                         itemContext.components['component-operation-status'] = Mustache.render(this.components['components/component-operation-status'], item);
 
-                        if (item.paths_match) {
-                            console.log('Rendering static path display component with data:', item);
-                            itemContext.components['component-path-display-static'] = Mustache.render(this.components['components/component-path-display-static'], item);
-                        } else {
-                            if (item.is_pre_save) {
-                                console.log('Rendering dynamic path display component with data:', item);
-                                itemContext.components['component-path-display-dynamic'] = Mustache.render(this.components['components/component-path-display-dynamic'], item);
-                            } else {
-                                console.log('Rendering static path display component with data:', item);
-                                itemContext.components['component-path-display-static'] = Mustache.render(this.components['components/component-path-display-static'], item);
-                            }
-                        }
+                        // Add path display flags based on status
+                        itemContext.show_current_path = !item.paths_match;
+                        itemContext.is_correct = item.paths_match;
+                        itemContext.needs_move = !item.paths_match && item.is_pre_save;
+                        itemContext.is_dynamic = item.is_pre_save;
+
+                        console.log('Rendering path display component with data:', itemContext);
+                        itemContext.components['component-path-display'] = Mustache.render(this.components['components/component-path-display'], itemContext);
 
                         return itemContext;
                     });

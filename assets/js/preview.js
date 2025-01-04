@@ -55,9 +55,16 @@ jQuery(document).ready(function ($) {
                             status_class: item.status.replace('will_', ''),
                             operation_text: wpMediaOrganiser.noticeConfig.operation_text['pre-save'][item.status],
                             current_path: item.current_path,
-                            colored_path: item.preferred_path,
                             paths_match: item.status === 'correct',
-                            is_pre_save: true
+                            is_pre_save: true,
+                            // Add path components for dynamic updates
+                            post_type: item.post_type,
+                            taxonomy: item.taxonomy,
+                            term: item.term,
+                            year: item.year,
+                            month: item.month,
+                            post_id: item.post_id,
+                            filename: item.filename
                         })),
                         post_info: {
                             post_id: wpMediaOrganiser.postId,

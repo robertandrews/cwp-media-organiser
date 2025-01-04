@@ -82,15 +82,13 @@ class CWP_Media_Organiser_Notice_Renderer
                     $item['components']['component-thumbnail'] = $this->mustache->render('components/component-thumbnail', $item);
                     $item['components']['component-operation-status'] = $this->mustache->render('components/component-operation-status', $item);
 
-                    if ($item['paths_match']) {
-                        $item['components']['component-path-display-static'] = $this->mustache->render('components/component-path-display-static', $item);
-                    } else {
-                        if ($item['is_pre_save']) {
-                            $item['components']['component-path-display-dynamic'] = $this->mustache->render('components/component-path-display-dynamic', $item);
-                        } else {
-                            $item['components']['component-path-display-static'] = $this->mustache->render('components/component-path-display-static', $item);
-                        }
-                    }
+                    // Add path display flags based on status
+                    $item['show_current_path'] = !$item['paths_match'];
+                    $item['is_correct'] = $item['paths_match'];
+                    $item['needs_move'] = !$item['paths_match'] && isset($item['is_pre_save']) && $item['is_pre_save'];
+                    $item['is_dynamic'] = isset($item['is_pre_save']) && $item['is_pre_save'];
+
+                    $item['components']['component-path-display'] = $this->mustache->render('components/component-path-display', $item);
                 }
             }
 

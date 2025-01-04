@@ -1,3 +1,11 @@
+/* Color Palette */
+:root {
+    --color-success: #46b450;
+    --color-warning: #ffb900;
+    --color-error: #dc3232;
+    --color-neutral: #888888;
+}
+
 /* Notice Container */
 .media-organiser-notice {
     padding: 10px 12px;
@@ -52,22 +60,22 @@ a {
 /* Status Colors */
 .correct .status-dot,
 .correct .operation-text {
-    color: #46b450;
+    color: var(--color-success);
 }
 
 .move .status-dot,
 .move .operation-text {
-    color: #ffb900;
+    color: var(--color-warning);
 }
 
 .fail .status-dot,
 .fail .operation-text {
-    color: #dc3232;
+    color: var(--color-error);
 }
 
 .skip .status-dot,
 .skip .operation-text {
-    color: #888888;
+    color: var(--color-neutral);
 }
 
 /* Summary Counts */
@@ -112,11 +120,34 @@ a {
 
 .path-display code {
     display: block;
-    background: #f5f5f5;
     padding: 4px 8px;
     margin: 2px 0;
     border-radius: 4px;
     word-break: break-all;
+}
+
+/* Path types */
+.path-wrong {
+    background: #f5f5f5;
+}
+
+.path-wrong .dashicons {
+    color: var(--color-error);
+    margin-right: 5px;
+}
+
+.path-preferred-correct {
+    background: #f5f5f5;
+}
+
+code.path-preferred-move {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+}
+
+code.path-preferred-move .dashicons {
+    color: var(--color-success);
+    margin-right: 5px;
 }
 
 .path-arrow {
@@ -124,10 +155,4 @@ a {
     color: #666;
     margin: 2px 0;
     font-weight: bold;
-}
-
-/* Dynamic Path */
-.path-display.dynamic .path-preferred {
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
 }
