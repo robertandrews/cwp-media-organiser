@@ -4,8 +4,6 @@ jQuery(document).ready(function ($) {
         var taxonomyName = $('#taxonomy_name').val();
         var postIdentifier = $('#post_identifier').val();
 
-        console.log('Current taxonomy value:', taxonomyName);
-
         // Get uploads path from WordPress settings
         var previewHtml = '';
         if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.uploadsPath) {
@@ -14,16 +12,7 @@ jQuery(document).ready(function ($) {
 
         // Add post type if enabled
         if (usePostType) {
-            // Get a sample post type for preview
-            var samplePostType = '{post}';
-            if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.postTypes) {
-                // Get the first available post type
-                var postTypes = Object.keys(wpMediaOrganiser.postTypes);
-                if (postTypes.length > 0) {
-                    samplePostType = '{' + postTypes[0] + '}';
-                }
-            }
-            previewHtml += '/<span class="post-type">' + samplePostType + '</span>';
+            previewHtml += '/<span class="post-type">{post}</span>';
         }
 
         if (taxonomyName) {
@@ -46,44 +35,8 @@ jQuery(document).ready(function ($) {
         $('.wp-media-organiser-preview code').html(previewHtml);
     }
 
-    function loadTaxonomies() {
-        var $select = $('#taxonomy_name');
-
-        if ($select.data('loaded')) {
-            return;
-        }
-
-        console.log('Loading taxonomies...');
-        $.ajax({
-            url: ajaxurl,
-            data: {
-                action: 'get_taxonomies'
-            },
-            success: function (response) {
-                console.log('Taxonomy response:', response);
-                if (response.success && response.data) {
-                    var options = '<option value="">None</option>';
-                    $.each(response.data, function (key, label) {
-                        options += '<option value="' + key + '">' + label + '</option>';
-                    });
-                    $select.html(options);
-
-                    // Set the current value if it exists
-                    if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.currentTaxonomy) {
-                        $select.val(wpMediaOrganiser.currentTaxonomy);
-                        console.log('Set saved taxonomy value:', wpMediaOrganiser.currentTaxonomy);
-                    }
-
-                    // Update the preview after setting the value
-                    updatePreview();
-                }
-                $select.data('loaded', true);
-            },
-            error: function (xhr, status, error) {
-                console.error('Failed to load taxonomies:', error);
-            }
-        });
-    }
+    // Add event listeners for form changes
+    $('#use_post_type, #taxonomy_name, #post_identifier').on('change', updatePreview);
 
     // Add post type info after the checkbox description
     if (typeof wpMediaOrganiser !== 'undefined' && wpMediaOrganiser.postTypes) {
@@ -97,18 +50,4 @@ jQuery(document).ready(function ($) {
         postTypeInfo.html(postTypeList);
         $('#use_post_type').closest('td').find('.description').after(postTypeInfo);
     }
-
-    // Update preview on any form change
-    $('#use_post_type, #taxonomy_name, #post_identifier').on('change', function (e) {
-        console.log('Form field changed:', e.target.id, 'New value:', $(e.target).val());
-        updatePreview();
-    });
-
-    // Load taxonomies immediately on page load
-    loadTaxonomies();
-
-    // Also load taxonomies on focus (as a backup)
-    $('#taxonomy_name').on('focus', function () {
-        loadTaxonomies();
-    });
 }); 

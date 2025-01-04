@@ -8,7 +8,7 @@ if (!defined('WPINC')) {
 
     <div class="wp-media-organiser-preview">
         <p><?php _e('Preview of media file path:', 'wp-media-organiser');?></p>
-        <code></code>
+        <code><?php echo $template_data['preview_path']; ?></code>
     </div>
 
     <form method="post" action="" class="wp-media-organiser-form">
@@ -20,7 +20,7 @@ if (!defined('WPINC')) {
                     <label for="use_post_type"><?php _e('Include Post Type', 'wp-media-organiser');?></label>
                 </th>
                 <td>
-                    <input type="checkbox" id="use_post_type" name="use_post_type" value="1" <?php checked($use_post_type, '1');?>>
+                    <input type="checkbox" id="use_post_type" name="use_post_type" value="1" <?php checked($template_data['use_post_type'], '1');?>>
                     <p class="description"><?php _e('Include the post type in the file path', 'wp-media-organiser');?></p>
                 </td>
             </tr>
@@ -32,6 +32,11 @@ if (!defined('WPINC')) {
                 <td>
                     <select id="taxonomy_name" name="taxonomy_name">
                         <option value=""><?php _e('None', 'wp-media-organiser');?></option>
+                        <?php foreach ($template_data['available_taxonomies'] as $tax_name => $tax_label): ?>
+                            <option value="<?php echo esc_attr($tax_name); ?>" <?php selected($template_data['taxonomy_name'], $tax_name);?>>
+                                <?php echo esc_html($tax_label); ?>
+                            </option>
+                        <?php endforeach;?>
                     </select>
                     <p class="description"><?php _e('Select a taxonomy to include in the file path', 'wp-media-organiser');?></p>
                 </td>
@@ -60,9 +65,9 @@ printf(
                 </th>
                 <td>
                     <select id="post_identifier" name="post_identifier">
-                        <option value="none" <?php selected($post_identifier, 'none');?>><?php _e('None', 'wp-media-organiser');?></option>
-                        <option value="slug" <?php selected($post_identifier, 'slug');?>><?php _e('Post Slug', 'wp-media-organiser');?></option>
-                        <option value="id" <?php selected($post_identifier, 'id');?>><?php _e('Post ID', 'wp-media-organiser');?></option>
+                        <option value="none" <?php selected($template_data['post_identifier'], 'none');?>><?php _e('None', 'wp-media-organiser');?></option>
+                        <option value="slug" <?php selected($template_data['post_identifier'], 'slug');?>><?php _e('Post Slug', 'wp-media-organiser');?></option>
+                        <option value="id" <?php selected($template_data['post_identifier'], 'id');?>><?php _e('Post ID', 'wp-media-organiser');?></option>
                     </select>
                     <p class="description"><?php _e('Choose how to identify the post in the file path', 'wp-media-organiser');?></p>
                 </td>

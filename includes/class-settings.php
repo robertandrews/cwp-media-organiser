@@ -183,9 +183,7 @@ class WP_Media_Organiser_Settings
             $this->update_setting('taxonomy_name', $taxonomy_value);
             $this->update_setting('post_identifier', sanitize_text_field($_POST['post_identifier']));
 
-            $saved_value = $this->get_setting('taxonomy_name');
             $this->logger->log("Settings saved successfully", 'info');
-
             echo '<div class="notice notice-success"><p>' . __('Settings saved.', 'wp-media-organiser') . '</p></div>';
         }
 
@@ -193,6 +191,40 @@ class WP_Media_Organiser_Settings
         $use_post_type = $this->get_setting('use_post_type');
         $taxonomy_name = $this->get_setting('taxonomy_name');
         $post_identifier = $this->get_setting('post_identifier');
+
+        // Get available taxonomies
+        $taxonomies = get_taxonomies(array('public' => true), 'objects');
+        $available_taxonomies = array();
+        foreach ($taxonomies as $tax) {
+            $available_taxonomies[$tax->name] = $tax->label;
+        }
+
+        // Generate initial path preview
+        $preview_path = '/wp-content/uploads/';
+        if ($use_post_type === '1') {
+            $preview_path .= '<span class="post-type">{post}</span>/';
+        }
+        if ($taxonomy_name) {
+            $preview_path .= '<span class="taxonomy">' . $taxonomy_name . '</span>/<span class="term">{term_slug}</span>/';
+        }
+        if (get_option('uploads_use_yearmonth_folders')) {
+            $preview_path .= '{YYYY}/{MM}/';
+        }
+        if ($post_identifier === 'slug') {
+            $preview_path .= '<span class="post-identifier">{post-slug}</span>/';
+        } else if ($post_identifier === 'id') {
+            $preview_path .= '<span class="post-identifier">{post-id}</span>/';
+        }
+        $preview_path .= 'image.jpg';
+
+        // Add the data to the template
+        $template_data = array(
+            'preview_path' => $preview_path,
+            'use_post_type' => $use_post_type,
+            'taxonomy_name' => $taxonomy_name,
+            'post_identifier' => $post_identifier,
+            'available_taxonomies' => $available_taxonomies,
+        );
 
         include $this->plugin_path . 'templates/settings-page.php';
     }
