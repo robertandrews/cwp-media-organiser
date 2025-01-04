@@ -18,7 +18,7 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 const variants = ['variant-post-pre-save', 'variant-post-after-save', 'variant-list-after-save'];
                 for (const variant of variants) {
                     try {
-                        const response = await fetch(`${templatesUrl}/variants/${variant}.html`);
+                        const response = await fetch(`${templatesUrl}/variants/${variant}.html?_=${Date.now()}`);
                         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                         const content = await response.text();
                         this.templates[`variants/${variant}`] = content;
@@ -37,7 +37,9 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     'component-media-items-list',
                     'component-media-item',
                     'component-thumbnail',
-                    'component-operation-status',
+                    'component-status-dot',
+                    'component-media-info',
+                    'component-operation-text',
                     'component-path-display',
                     'component-path-wrong',
                     'component-path-preferred-correct',
@@ -48,7 +50,7 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 // Load all components first
                 for (const component of components) {
                     try {
-                        const response = await fetch(`${templatesUrl}/components/${component}.html`);
+                        const response = await fetch(`${templatesUrl}/components/${component}.html?_=${Date.now()}`);
                         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                         const content = await response.text();
                         this.components[`components/${component}`] = content;
@@ -122,8 +124,14 @@ if (typeof window.NoticeRenderer === 'undefined') {
                         console.log('Rendering thumbnail component with data:', item);
                         itemContext.components['component-thumbnail'] = Mustache.render(this.components['components/component-thumbnail'], item);
 
-                        console.log('Rendering operation status component with data:', item);
-                        itemContext.components['component-operation-status'] = Mustache.render(this.components['components/component-operation-status'], item);
+                        console.log('Rendering status dot component with data:', item);
+                        itemContext.components['component-status-dot'] = Mustache.render(this.components['components/component-status-dot'], item);
+
+                        console.log('Rendering media info component with data:', item);
+                        itemContext.components['component-media-info'] = Mustache.render(this.components['components/component-media-info'], item);
+
+                        console.log('Rendering operation text component with data:', item);
+                        itemContext.components['component-operation-text'] = Mustache.render(this.components['components/component-operation-text'], item);
 
                         // Add path display flags based on status
                         itemContext.show_current_path = !item.paths_match;

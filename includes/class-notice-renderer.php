@@ -32,6 +32,7 @@ class CWP_Media_Organiser_Notice_Renderer
             'escape' => function ($value) {
                 return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
             },
+            'cache' => new Mustache_Cache_NoopCache(),
         ]);
 
         // Log available templates
@@ -80,7 +81,9 @@ class CWP_Media_Organiser_Notice_Renderer
                 foreach ($data['media_items'] as &$item) {
                     $item['components'] = array();
                     $item['components']['component-thumbnail'] = $this->mustache->render('components/component-thumbnail', $item);
-                    $item['components']['component-operation-status'] = $this->mustache->render('components/component-operation-status', $item);
+                    $item['components']['component-status-dot'] = $this->mustache->render('components/component-status-dot', $item);
+                    $item['components']['component-media-info'] = $this->mustache->render('components/component-media-info', $item);
+                    $item['components']['component-operation-text'] = $this->mustache->render('components/component-operation-text', $item);
 
                     // Add path display flags based on status
                     $item['show_current_path'] = !$item['paths_match'];

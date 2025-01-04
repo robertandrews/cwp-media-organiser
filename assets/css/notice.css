@@ -146,6 +146,11 @@ code.path-preferred-move {
 }
 
 code.path-preferred-move .dashicons {
+    color: var(--color-warning);
+    margin-right: 5px;
+}
+
+code.path-preferred-correct .dashicons {
     color: var(--color-success);
     margin-right: 5px;
 }
