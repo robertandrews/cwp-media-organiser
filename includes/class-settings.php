@@ -24,7 +24,6 @@ class WP_Media_Organiser_Settings
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
-        add_action('wp_ajax_get_taxonomies', array($this, 'ajax_get_taxonomies'));
     }
 
     public function get_setting($name)
@@ -138,31 +137,16 @@ class WP_Media_Organiser_Settings
         // Get all valid post types
         $post_types = $this->get_valid_post_types();
 
-        // Pass the current taxonomy value and post types to JavaScript
+        // Pass data to JavaScript
         wp_localize_script(
             'wp-media-organiser-admin',
             'wpMediaOrganiser',
             array(
-                'currentTaxonomy' => $this->get_setting('taxonomy_name'),
                 'postTypes' => $post_types,
                 'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
                 'uploadsPath' => str_replace(site_url(), '', wp_get_upload_dir()['baseurl']),
             )
         );
-    }
-
-    public function ajax_get_taxonomies()
-    {
-        $this->logger->log('AJAX request: get_taxonomies', 'debug');
-        $taxonomies = get_taxonomies(array('public' => true), 'objects');
-        $response = array();
-
-        foreach ($taxonomies as $tax) {
-            $response[$tax->name] = $tax->label;
-        }
-
-        $this->logger->log('Available taxonomies: ' . print_r($response, true), 'debug');
-        wp_send_json_success($response);
     }
 
     public function render_settings_page()
