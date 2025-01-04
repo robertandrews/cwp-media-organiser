@@ -14,19 +14,15 @@ class CWP_Media_Organiser_Notice_Config
         return array(
             'status_types' => array(
                 'correct' => array(
-                    'dot_class' => 'status-dot-correct',
                     'operation_class' => 'operation-correct',
                 ),
                 'move' => array(
-                    'dot_class' => 'status-dot-moved',
                     'operation_class' => 'operation-move',
                 ),
                 'fail' => array(
-                    'dot_class' => 'status-dot-failed',
                     'operation_class' => 'operation-fail',
                 ),
                 'skip' => array(
-                    'dot_class' => 'status-dot-skipped',
                     'operation_class' => 'operation-skip',
                 ),
             ),

@@ -44,13 +44,8 @@
     flex: 1;
 }
 
-.status-dot {
-    margin-right: 5px;
-}
-
 .operation-text {
     font-weight: 500;
-    margin-left: 5px;
 }
 
 a {
@@ -58,22 +53,18 @@ a {
 }
 
 /* Status Colors */
-.correct .status-dot,
 .correct .operation-text {
     color: var(--color-success);
 }
 
-.move .status-dot,
 .move .operation-text {
     color: var(--color-warning);
 }
 
-.fail .status-dot,
 .fail .operation-text {
     color: var(--color-error);
 }
 
-.skip .status-dot,
 .skip .operation-text {
     color: var(--color-neutral);
 }

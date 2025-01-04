@@ -35,9 +35,7 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     'component-summary-counts',
                     'component-post-info',
                     'component-media-items-list',
-                    'component-media-item',
                     'component-thumbnail',
-                    'component-status-dot',
                     'component-media-info',
                     'component-operation-text',
                     'component-path-display',
@@ -123,9 +121,6 @@ if (typeof window.NoticeRenderer === 'undefined') {
                         // Pre-render each component for this media item
                         console.log('Rendering thumbnail component with data:', item);
                         itemContext.components['component-thumbnail'] = Mustache.render(this.components['components/component-thumbnail'], item);
-
-                        console.log('Rendering status dot component with data:', item);
-                        itemContext.components['component-status-dot'] = Mustache.render(this.components['components/component-status-dot'], item);
 
                         console.log('Rendering media info component with data:', item);
                         itemContext.components['component-media-info'] = Mustache.render(this.components['components/component-media-info'], item);

@@ -81,7 +81,6 @@ class CWP_Media_Organiser_Notice_Renderer
                 foreach ($data['media_items'] as &$item) {
                     $item['components'] = array();
                     $item['components']['component-thumbnail'] = $this->mustache->render('components/component-thumbnail', $item);
-                    $item['components']['component-status-dot'] = $this->mustache->render('components/component-status-dot', $item);
                     $item['components']['component-media-info'] = $this->mustache->render('components/component-media-info', $item);
                     $item['components']['component-operation-text'] = $this->mustache->render('components/component-operation-text', $item);
 

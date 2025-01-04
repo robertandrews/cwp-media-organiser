@@ -4,11 +4,12 @@
             {{{components.component-thumbnail}}}
             <div class="media-content">
                 <div class="media-info">
-                <!--{{{components.component-status-dot}}}-->
-                {{{components.component-media-info}}}
-                {{{components.component-operation-text}}}
+                    {{{components.component-media-info}}}
                 </div>
-                {{{components.component-path-display}}}
+                <div class="media-operation">
+                    <div class="operation-text">{{{components.component-operation-text}}}</div>
+                    {{{components.component-path-display}}}
+                </div>
             </div>
         </li>
     {{/media_items}}

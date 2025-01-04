@@ -1,15 +1,17 @@
 jQuery(document).ready(function ($) {
     console.log('Preview script initialized');
 
-    const noticeRenderer = new NoticeRenderer();
+    let noticeRenderer = null;
     let currentPreviewData = null;
 
-    // Initialize the notice renderer
-    noticeRenderer.init().then(() => {
-        console.log('Notice renderer initialized');
-    }).catch(error => {
-        console.error('Failed to initialize notice renderer:', error);
-    });
+    // Function to ensure notice renderer is initialized
+    async function ensureNoticeRenderer() {
+        if (!noticeRenderer) {
+            noticeRenderer = new NoticeRenderer();
+            await noticeRenderer.init();
+        }
+        return noticeRenderer;
+    }
 
     // Function to update preview paths
     async function updatePreviewPaths() {
@@ -75,8 +77,9 @@ jQuery(document).ready(function ($) {
                     console.log('Media items:', JSON.stringify(noticeData.media_items, null, 2));
 
                     try {
-                        // Render notice
-                        const html = await noticeRenderer.renderNotice('post.php', 'pre-save', noticeData);
+                        // Initialize renderer if needed and render notice
+                        const renderer = await ensureNoticeRenderer();
+                        const html = await renderer.renderNotice('post.php', 'pre-save', noticeData);
                         console.log('Rendered HTML:', html);
 
                         // Update notice container
