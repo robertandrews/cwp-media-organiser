@@ -514,4 +514,90 @@ class WP_Media_Organiser_Processor
 
         return $results;
     }
+
+    /**
+     * Preview media reorganization without actually moving files
+     *
+     * @param int $post_id The post ID to preview reorganization for
+     * @return array Preview data including current and preferred paths
+     */
+    public function preview_media_reorganization($post_id)
+    {
+        $media_files = $this->get_post_media_files($post_id);
+        if (empty($media_files)) {
+            return array();
+        }
+
+        $post = get_post($post_id);
+        $preview_data = array();
+
+        foreach ($media_files as $attachment_id => $current_path) {
+            $preferred_path = $this->get_new_file_path($attachment_id, $post_id, null, 'preview');
+
+            // Normalize paths for comparison
+            $normalized_current = $this->normalize_path($current_path);
+            $normalized_preferred = $this->normalize_path($preferred_path);
+
+            // Extract path components
+            $path_components = array();
+
+            // Add post type if enabled
+            if ($this->settings->get_setting('use_post_type') === '1' && $post && isset($post->post_type)) {
+                $valid_types = array_keys($this->settings->get_valid_post_types());
+                if (in_array($post->post_type, $valid_types)) {
+                    $path_components['post_type'] = $post->post_type;
+                }
+            }
+
+            // Add taxonomy and term if enabled
+            $taxonomy_name = $this->settings->get_setting('taxonomy_name');
+            if (!empty($taxonomy_name)) {
+                $path_components['taxonomy'] = $taxonomy_name;
+                $terms = wp_get_post_terms($post_id, $taxonomy_name);
+                if (!empty($terms) && !is_wp_error($terms)) {
+                    $path_components['term'] = $terms[0]->slug;
+                }
+            }
+
+            // Add year/month
+            $attachment_date = get_post_time('Y-m', false, $attachment_id);
+            if ($attachment_date) {
+                list($year, $month) = explode('-', $attachment_date);
+                $path_components['year'] = $year;
+                $path_components['month'] = $month;
+            }
+
+            // Add post identifier (slug or ID)
+            $post_identifier = $this->settings->get_setting('post_identifier');
+            if ($post_identifier === 'slug') {
+                $path_components['post_id'] = $post->post_name ?: sanitize_title($post->post_title);
+            } elseif ($post_identifier === 'id') {
+                $path_components['post_id'] = $post_id;
+            }
+
+            // Get filename
+            $path_components['filename'] = basename($preferred_path);
+
+            $preview_data[] = array_merge(array(
+                'id' => $attachment_id,
+                'current_path' => $current_path,
+                'preferred_path' => $preferred_path,
+                'status' => $normalized_current === $normalized_preferred ? 'correct' : 'will_move',
+            ), $path_components);
+        }
+
+        return $preview_data;
+    }
+
+    /**
+     * Normalize a file path for consistent comparison
+     */
+    private function normalize_path($path)
+    {
+        // Convert backslashes to forward slashes
+        $path = str_replace('\\', '/', $path);
+
+        // Convert to lowercase for case-insensitive comparison
+        return strtolower($path);
+    }
 }

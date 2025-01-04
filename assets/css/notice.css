@@ -8,47 +8,65 @@
     margin: 0 0 5px;
 }
 
-/* Media Status Item */
-.media-status-item {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 5px;
+/* Media Items */
+.media-items-list {
+    margin: 10px 0;
+    padding: 0;
+    list-style: none;
 }
 
-.media-status-item img {
+.media-item {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.media-thumbnail {
+    flex: 0 0 36px;
+    margin-right: 12px;
+}
+
+.media-thumbnail img {
     width: 36px;
     height: 36px;
     object-fit: cover;
-    margin-right: 10px;
+    border-radius: 2px;
 }
 
-.media-status-item .status-text {
+.media-content {
     flex: 1;
-    padding-bottom: 8px;
 }
 
-/* Status Dots and Operations */
 .status-dot {
     margin-right: 5px;
 }
 
-.status-dot-correct,
-.operation-correct {
+.operation-text {
+    font-weight: 500;
+    margin-left: 5px;
+}
+
+a {
+    text-decoration: none;
+}
+
+/* Status Colors */
+.correct .status-dot,
+.correct .operation-text {
     color: #46b450;
 }
 
-.status-dot-moved,
-.operation-move {
+.move .status-dot,
+.move .operation-text {
     color: #ffb900;
 }
 
-.status-dot-failed,
-.operation-fail {
+.fail .status-dot,
+.fail .operation-text {
     color: #dc3232;
 }
 
-.status-dot-skipped,
-.operation-skip {
+.skip .status-dot,
+.skip .operation-text {
     color: #888888;
 }
 
@@ -83,26 +101,33 @@
     color: #ef6c00;
 }
 
-/* Code Blocks */
-.media-organiser-notice code {
-    background: #f5f5f5 !important;
-    margin: 0 !important;
-    display: inline-block !important;
-    border-radius: 4px !important;
-}
-
 /* Path Display */
-.component-path-from-to {
+.path-display {
     display: block;
-    /* line-height: 1.6; */
+    margin-top: 4px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
-.component-path-from-to code {
-    margin-top: 2px !important;
-    margin-bottom: 2px !important;
-    padding: 4px 6px !important;
+.path-display code {
+    display: block;
+    background: #f5f5f5;
+    padding: 4px 8px;
+    margin: 2px 0;
+    border-radius: 4px;
+    word-break: break-all;
 }
 
-.component-path-single code {
-    padding: 4px 6px !important;
+.path-arrow {
+    display: block;
+    color: #666;
+    margin: 2px 0;
+    font-weight: bold;
+}
+
+/* Dynamic Path */
+.path-display.dynamic .path-preferred {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
 }

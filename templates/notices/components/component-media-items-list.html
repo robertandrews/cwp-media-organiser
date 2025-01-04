@@ -1,0 +1,26 @@
+<ul class="media-items-list">
+    {{#media_items}}
+        <li class="media-item {{status_class}}">
+            <div class="media-thumbnail">
+                {{{components.component-thumbnail}}}
+            </div>
+            <div class="media-content">
+                <span class="status-dot">●</span>
+                <a href="{{media_edit_url}}" target="_blank">{{media_title}}</a>
+                (ID: {{media_id}})
+                <span class="operation-text">{{operation_text}}</span>
+                {{#paths_match}}
+                    {{{components.component-path-display-static}}}
+                {{/paths_match}}
+                {{^paths_match}}
+                    {{#is_pre_save}}
+                        {{{components.component-path-display-dynamic}}}
+                    {{/is_pre_save}}
+                    {{^is_pre_save}}
+                        {{{components.component-path-display-static}}}
+                    {{/is_pre_save}}
+                {{/paths_match}}
+            </div>
+        </li>
+    {{/media_items}}
+</ul> 

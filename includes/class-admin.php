@@ -53,7 +53,7 @@ class WP_Media_Organiser_Admin
         add_action('save_post', array($this, 'handle_save_post'), 10, 3);
 
         // Add AJAX handlers for preview
-        add_action('wp_ajax_get_preview_paths', array($this, 'ajax_get_preview_paths'));
+        add_action('wp_ajax_wp_media_organiser_preview', array($this, 'ajax_get_preview_paths'));
     }
 
     /**
@@ -234,7 +234,11 @@ class WP_Media_Organiser_Admin
                 $notice_data['media_items'] = $this->prepare_media_items_data($post_messages);
             }
 
-            echo CWP_Media_Organiser_Notice_Components::render_notice('post-save', $notice_data, true); // true = is list screen
+            echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
+                'edit.php', // we're on the list screen
+                'post-save',
+                $notice_data
+            );
         }
     }
 
@@ -274,7 +278,11 @@ class WP_Media_Organiser_Admin
             $notice_data['media_items'] = $this->prepare_media_items_data($results['post_messages']);
         }
 
-        echo CWP_Media_Organiser_Notice_Components::render_notice('post-save', $notice_data, false); // false = not list screen
+        echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
+            'post.php', // we're on single post screen
+            'post-save',
+            $notice_data
+        );
     }
 
     /**
@@ -282,52 +290,84 @@ class WP_Media_Organiser_Admin
      */
     public function add_preview_notice()
     {
+        $this->logger->log("=== Starting add_preview_notice ===", 'debug');
+
         $screen = get_current_screen();
-        if ($screen->base !== 'post') {
+        if (!$screen || !in_array($screen->base, array('post', 'page'))) {
+            $this->logger->log("Skipping: Not on post/page edit screen", 'debug');
             return;
         }
 
         $post_id = get_the_ID();
         if (!$post_id) {
+            $this->logger->log("Skipping: No post ID found", 'debug');
             return;
         }
 
-        // Get current media files for this post
-        $media_files = $this->processor->get_post_media_files($post_id);
-        if (empty($media_files)) {
+        // Get preview data
+        $preview_data = $this->processor->preview_media_reorganization($post_id);
+        $this->logger->log("Preview data: " . print_r($preview_data, true), 'debug');
+
+        if (empty($preview_data)) {
+            $this->logger->log("Skipping: No media files found", 'debug');
             return;
         }
 
+        // Prepare notice data
         $notice_data = array(
-            'post' => array(
-                'id' => $post_id,
-                'title' => get_the_title($post_id),
-                'media_count' => count($media_files),
-            ),
+            'notice_type' => 'Pre-save',
             'media_items' => array(),
+            'post_info' => array(
+                'post_id' => $post_id,
+                'post_title' => get_the_title($post_id),
+            ),
         );
 
-        foreach ($media_files as $attachment_id => $current_path) {
-            $attachment = get_post($attachment_id);
-            $preferred_path = $this->processor->get_new_file_path($attachment_id, $post_id, null, 'preview');
-            $normalized_preferred = strtolower(str_replace('\\', '/', $preferred_path));
-            $normalized_current = strtolower(str_replace('\\', '/', $current_path));
-
-            // Determine operation status
-            $status = ($normalized_preferred === $normalized_current) ? 'correct' : 'move';
+        foreach ($preview_data as $item) {
+            $media_id = $item['id'];
+            $current_path = $this->normalize_path($item['current_path']);
+            $preferred_path = $this->normalize_path($item['preferred_path']);
+            $paths_match = ($current_path === $preferred_path);
+            $status = $item['status'];
 
             $notice_data['media_items'][] = array(
-                'id' => $attachment_id,
-                'title' => $attachment->post_title,
-                'thumbnail' => wp_get_attachment_image($attachment_id, array(36, 36), true),
+                'media_id' => $media_id,
+                'media_title' => get_the_title($media_id),
+                'media_edit_url' => get_edit_post_link($media_id),
+                'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
                 'status' => $status,
-                'current_path' => $this->normalize_path($current_path),
-                'preferred_path' => $this->color_code_path_components($preferred_path),
+                'status_class' => str_replace('will_', '', $status),
+                'operation_text' => $this->get_operation_text($status),
+                'current_path' => $current_path,
+                'paths_match' => $paths_match,
+                'is_pre_save' => true,
+                // Add path components
+                'post_type' => isset($item['post_type']) ? $item['post_type'] : '',
+                'taxonomy' => isset($item['taxonomy']) ? $item['taxonomy'] : '',
+                'term' => isset($item['term']) ? $item['term'] : '',
+                'year' => isset($item['year']) ? $item['year'] : '',
+                'month' => isset($item['month']) ? $item['month'] : '',
+                'post_id' => isset($item['post_id']) ? $item['post_id'] : '',
+                'filename' => isset($item['filename']) ? $item['filename'] : basename($preferred_path),
             );
         }
 
-        echo CWP_Media_Organiser_Notice_Components::render_notice('pre-save', $notice_data, false);
-    }
+        $this->logger->log("Notice data prepared: " . print_r($notice_data, true), 'debug');
+
+        // Output the notice after the title
+        ?>
+        <div id="media-organiser-notice-container">
+            <?php
+// Render the notice
+        echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
+            'post.php',
+            'pre-save',
+            $notice_data
+        );
+        ?>
+        </div>
+        <?php
+}
 
     /**
      * Prepare media items data for notice display
@@ -335,55 +375,32 @@ class WP_Media_Organiser_Admin
     private function prepare_media_items_data($post_messages)
     {
         $media_items = array();
-
-        foreach ($post_messages as $post_message) {
-            if (empty($post_message['items'])) {
+        foreach ($post_messages as $message) {
+            if (empty($message['media_items'])) {
                 continue;
             }
 
-            foreach ($post_message['items'] as $item) {
-                // Extract media ID and other info using regex
-                if (preg_match('/Media ID (\d+) \("([^"]+)"\)/', $item, $matches)) {
-                    $media_id = $matches[1];
-                    $media_title = $matches[2];
+            foreach ($message['media_items'] as $item) {
+                $media_id = $item['id'];
+                $current_path = $this->normalize_path($item['current_path']);
+                $preferred_path = $this->normalize_path($item['preferred_path']);
+                $paths_match = ($current_path === $preferred_path);
 
-                    // Determine operation status based on the message content
-                    if (strpos($item, 'Already in correct location') !== false) {
-                        $status = 'correct';
-                    } elseif (strpos($item, 'Moved from') !== false) {
-                        $status = 'move';
-                    } elseif (strpos($item, 'Cannot generate') !== false || strpos($item, 'Error:') !== false || strpos($item, 'Failed to move') !== false) {
-                        $status = 'fail';
-                    } elseif (strpos($item, 'Skipped') !== false) {
-                        $status = 'skip';
-                    } else {
-                        $status = 'correct'; // Default fallback
-                    }
-
-                    // Extract current and preferred paths
-                    $current_path = $this->extract_path($item, 'current');
-                    $preferred_path = $this->extract_path($item, 'new');
-
-                    // If we have a preferred path, color code it
-                    if ($preferred_path) {
-                        $preferred_path = $this->color_code_path_components($preferred_path);
-                    } else {
-                        // If no preferred path (e.g., for 'correct' status), use current path
-                        $preferred_path = $this->color_code_path_components($current_path);
-                    }
-
-                    $media_items[] = array(
-                        'id' => $media_id,
-                        'title' => $media_title,
-                        'thumbnail' => wp_get_attachment_image($media_id, array(36, 36), true),
-                        'status' => $status,
-                        'current_path' => $current_path,
-                        'preferred_path' => $preferred_path,
-                    );
-                }
+                $media_items[] = array(
+                    'media_id' => $media_id,
+                    'media_title' => get_the_title($media_id),
+                    'media_edit_url' => get_edit_post_link($media_id),
+                    'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
+                    'status' => $item['status'],
+                    'status_class' => str_replace('will_', '', $item['status']), // Convert will_move to move, etc.
+                    'operation_text' => $this->get_operation_text($item['status']),
+                    'current_path' => $current_path,
+                    'colored_path' => $this->color_code_path_components($preferred_path),
+                    'paths_match' => $paths_match,
+                    'is_pre_save' => false, // This method is only used for post-save notices
+                );
             }
         }
-
         return $media_items;
     }
 
@@ -392,18 +409,28 @@ class WP_Media_Organiser_Admin
      */
     private function get_operation_text($status)
     {
-        switch ($status) {
-            case 'moved':
-                return 'Moved from';
-            case 'existing':
-                return 'Already in correct location:';
-            case 'failed':
-                return 'Failed to move from';
-            case 'skipped':
-                return 'Skipped:';
-            default:
-                return '';
-        }
+        $pre_save_text = array(
+            'correct' => 'Already in correct location:',
+            'will_move' => 'Will move',
+            'will_fail' => 'Cannot move from',
+            'will_skip' => 'Will skip:',
+        );
+
+        $post_save_text = array(
+            'correct' => 'Already in correct location:',
+            'moved' => 'Moved from',
+            'failed' => 'Failed to move from',
+            'skipped' => 'Skipped:',
+        );
+
+        // Convert will_* statuses to their base form for post-save text lookup
+        $lookup_status = str_replace('will_', '', $status);
+
+        return isset($pre_save_text[$status])
+        ? $pre_save_text[$status]
+        : (isset($post_save_text[$lookup_status])
+            ? $post_save_text[$lookup_status]
+            : '');
     }
 
     /**
@@ -517,11 +544,38 @@ class WP_Media_Organiser_Admin
             return;
         }
 
+        // Enqueue notice styles
+        wp_enqueue_style(
+            'wp-media-organiser-notice',
+            $this->plugin_url . 'assets/css/notice.css',
+            array(),
+            filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/notice.css')
+        );
+
+        // Enqueue Mustache.js first
+        wp_enqueue_script(
+            'mustache',
+            $this->plugin_url . 'assets/js/lib/mustache.min.js',
+            array('jquery'),
+            '4.2.0',
+            true
+        );
+
+        // Enqueue notice renderer
+        wp_enqueue_script(
+            'wp-media-organiser-notice-renderer',
+            $this->plugin_url . 'assets/js/notice-renderer.js',
+            array('jquery', 'mustache'),
+            filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/js/notice-renderer.js'),
+            true
+        );
+
+        // Enqueue preview script
         wp_enqueue_script(
             'wp-media-organiser-preview',
             $this->plugin_url . 'assets/js/preview.js',
-            array('jquery'),
-            '1.0.0',
+            array('jquery', 'mustache', 'wp-media-organiser-notice-renderer'),
+            filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/js/preview.js'),
             true
         );
 
@@ -535,6 +589,7 @@ class WP_Media_Organiser_Admin
             'noticeConfig' => CWP_Media_Organiser_Notice_Config::get_js_config(),
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wp_media_organiser_preview'),
+            'templatesUrl' => $this->plugin_url . 'templates/notices',
         ));
     }
 
@@ -577,20 +632,18 @@ class WP_Media_Organiser_Admin
             }
         }
 
-        $media_files = $this->processor->get_post_media_files($post_id);
-        if (empty($media_files)) {
+        // Get preview data
+        $preview_data = $this->processor->preview_media_reorganization($post_id);
+        if (empty($preview_data)) {
             wp_send_json_error('No media files found');
         }
 
-        $preview_paths = array();
-        foreach ($media_files as $attachment_id => $current_path) {
-            // Pass the temporary post to get_new_file_path with preview context
-            $new_path = $this->processor->get_new_file_path($attachment_id, $post_id, $temp_post, 'preview');
-            if ($new_path) {
-                $preview_paths[$attachment_id] = $this->color_code_path_components($new_path);
-            }
+        // Enhance preview data with additional media information
+        foreach ($preview_data as &$item) {
+            $item['title'] = get_the_title($item['id']);
+            $item['thumbnail_url'] = wp_get_attachment_image_url($item['id'], 'thumbnail');
         }
 
-        wp_send_json_success($preview_paths);
+        wp_send_json_success($preview_data);
     }
 }
