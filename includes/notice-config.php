@@ -28,11 +28,16 @@ class CWP_Media_Organiser_Notice_Config
             'operation_class' => 'operation-skip',
             'color' => '#888888',
         ],
+        'preview' => [
+            'dot_class' => 'status-dot-preview',
+            'operation_class' => 'operation-preview',
+            'color' => '#888888',
+        ],
     ];
 
     // Operation text templates
     const OPERATION_TEXT = [
-        'pre-save' => [
+        'preview' => [
             'correct' => 'Correct location:',
             'move' => 'Will move',
             'fail' => 'Cannot move',

@@ -58,7 +58,7 @@ jQuery(document).ready(function ($) {
                             operation_text: wpMediaOrganiser.noticeConfig.operation_text['preview'][item.status],
                             current_path: item.current_path,
                             paths_match: item.status === 'correct',
-                            is_pre_save: true,
+                            is_preview: true,
                             // Add path components for dynamic updates
                             post_type: item.post_type,
                             taxonomy: item.taxonomy,

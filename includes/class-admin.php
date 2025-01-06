@@ -340,7 +340,7 @@ class WP_Media_Organiser_Admin
                 'operation_text' => $this->get_operation_text($status),
                 'current_path' => $current_path,
                 'paths_match' => $paths_match,
-                'is_pre_save' => true,
+                'is_preview' => true,
                 // Add path components
                 'post_type' => isset($item['post_type']) ? $item['post_type'] : '',
                 'taxonomy' => isset($item['taxonomy']) ? $item['taxonomy'] : '',
@@ -397,7 +397,7 @@ class WP_Media_Organiser_Admin
                     'current_path' => $current_path,
                     'colored_path' => $this->color_code_path_components($preferred_path),
                     'paths_match' => $paths_match,
-                    'is_pre_save' => false, // This method is only used for post-save notices
+                    'is_preview' => false, // This method is only used for post-save notices
                 );
             }
         }

@@ -92,8 +92,8 @@ class CWP_Media_Organiser_Notice_Renderer
                     // Add path display flags based on status
                     $item['show_current_path'] = !$item['paths_match'];
                     $item['is_correct'] = $item['paths_match'];
-                    $item['needs_move'] = !$item['paths_match'] && isset($item['is_pre_save']) && $item['is_pre_save'];
-                    $item['is_dynamic'] = isset($item['is_pre_save']) && $item['is_pre_save'];
+                    $item['needs_move'] = !$item['paths_match'] && isset($item['is_preview']) && $item['is_preview'];
+                    $item['is_dynamic'] = isset($item['is_preview']) && $item['is_preview'];
                 }
             }
 

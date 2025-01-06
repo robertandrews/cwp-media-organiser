@@ -131,8 +131,8 @@ if (typeof window.NoticeRenderer === 'undefined') {
                         // Add path display flags based on status
                         itemContext.show_current_path = !item.paths_match;
                         itemContext.is_correct = item.paths_match;
-                        itemContext.needs_move = !item.paths_match && item.is_pre_save;
-                        itemContext.is_dynamic = item.is_pre_save;
+                        itemContext.needs_move = !item.paths_match && item.is_preview;
+                        itemContext.is_dynamic = item.is_preview;
 
                         return itemContext;
                     });
