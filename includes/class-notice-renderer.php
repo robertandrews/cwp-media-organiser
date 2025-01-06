@@ -89,8 +89,6 @@ class CWP_Media_Organiser_Notice_Renderer
                     $item['is_correct'] = $item['paths_match'];
                     $item['needs_move'] = !$item['paths_match'] && isset($item['is_pre_save']) && $item['is_pre_save'];
                     $item['is_dynamic'] = isset($item['is_pre_save']) && $item['is_pre_save'];
-
-                    $item['components']['component-path-display'] = $this->mustache->render('components/component-path-display', $item);
                 }
             }
 

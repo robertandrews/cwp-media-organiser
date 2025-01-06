@@ -38,10 +38,11 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     'component-thumbnail',
                     'component-media-info',
                     'component-operation-text',
-                    'component-path-display',
                     'component-path-wrong',
                     'component-path-preferred-correct',
                     'component-path-preferred-move',
+                    'media-operation/media-operation-preview-correct',
+                    'media-operation/media-operation-preview-move',
                     'component-error-message'
                 ];
 
@@ -133,9 +134,6 @@ if (typeof window.NoticeRenderer === 'undefined') {
                         itemContext.is_correct = item.paths_match;
                         itemContext.needs_move = !item.paths_match && item.is_pre_save;
                         itemContext.is_dynamic = item.is_pre_save;
-
-                        console.log('Rendering path display component with data:', itemContext);
-                        itemContext.components['component-path-display'] = Mustache.render(this.components['components/component-path-display'], itemContext);
 
                         return itemContext;
                     });

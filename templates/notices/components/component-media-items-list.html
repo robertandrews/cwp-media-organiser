@@ -6,10 +6,12 @@
                 <div class="media-info">
                     {{{components.component-media-info}}}
                 </div>
-                <div class="media-operation">
-                    <div class="operation-text">{{{components.component-operation-text}}}</div>
-                    {{{components.component-path-display}}}
-                </div>
+                {{#is_correct}}
+                    {{> components/media-operation/media-operation-preview-correct}}
+                {{/is_correct}}
+                {{#needs_move}}
+                    {{> components/media-operation/media-operation-preview-move}}
+                {{/needs_move}}
             </div>
         </li>
     {{/media_items}}
