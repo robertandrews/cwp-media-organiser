@@ -8,7 +8,13 @@ if (!defined('WPINC')) {
 
     <div class="wp-media-organiser-preview">
         <p><?php _e('Preview of media file path:', 'wp-media-organiser');?></p>
-        <code><?php echo $template_data['preview_path']; ?></code>
+        <code>/wp-content/uploads/<?php
+if ($template_data['use_post_type']): ?><span class="path-component path-post-type">{post}</span>/<?php endif;
+if ($template_data['taxonomy_name']): ?><span class="path-component path-taxonomy"><?php echo esc_html($template_data['taxonomy_name']); ?></span>/<span class="path-component path-term">{term_slug}</span>/<?php endif;
+if (get_option('uploads_use_yearmonth_folders')): ?>{YYYY}/{MM}/<?php endif;
+if ($template_data['post_identifier'] === 'slug'): ?><span class="path-component path-post-identifier">{post-slug}</span>/<?php
+elseif ($template_data['post_identifier'] === 'id'): ?><span class="path-component path-post-identifier">{post-id}</span>/<?php endif;
+?>image.jpg</code>
     </div>
 
     <form method="post" action="" class="wp-media-organiser-form">

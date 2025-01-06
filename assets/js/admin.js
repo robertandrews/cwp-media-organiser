@@ -12,11 +12,11 @@ jQuery(document).ready(function ($) {
 
         // Add post type if enabled
         if (usePostType) {
-            previewHtml += '/<span class="post-type">{post}</span>';
+            previewHtml += '/<span class="path-component path-post-type">{post}</span>';
         }
 
         if (taxonomyName) {
-            previewHtml += '/<span class="taxonomy">' + taxonomyName + '</span>/<span class="term">{term_slug}</span>';
+            previewHtml += '/<span class="path-component path-taxonomy">' + taxonomyName + '</span>/<span class="path-component path-term">{term_slug}</span>';
         }
 
         // Only show year/month folders if WordPress setting is enabled
@@ -25,9 +25,9 @@ jQuery(document).ready(function ($) {
         }
 
         if (postIdentifier === 'slug') {
-            previewHtml += '/<span class="post-identifier">{post-slug}</span>';
+            previewHtml += '/<span class="path-component path-post-identifier">{post-slug}</span>';
         } else if (postIdentifier === 'id') {
-            previewHtml += '/<span class="post-identifier">{post-id}</span>';
+            previewHtml += '/<span class="path-component path-post-identifier">{post-id}</span>';
         }
 
         previewHtml += '/image.jpg';

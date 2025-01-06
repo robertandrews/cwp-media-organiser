@@ -120,9 +120,16 @@ class WP_Media_Organiser_Settings
         }
 
         wp_enqueue_style(
+            'wp-media-organiser-notice',
+            $this->plugin_url . 'assets/css/notice.css',
+            array(),
+            filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/notice.css')
+        );
+
+        wp_enqueue_style(
             'wp-media-organiser-admin',
             $this->plugin_url . 'assets/css/admin.css',
-            array(),
+            array('wp-media-organiser-notice'),
             '1.0.0'
         );
 
