@@ -27,7 +27,7 @@ class CWP_Media_Organiser_Notice_Config
                 ),
             ),
             'operation_text' => array(
-                'pre-save' => array(
+                'preview' => array(
                     'correct' => 'Already in correct location:',
                     'move' => 'Will move from',
                     'fail' => 'Cannot move from',

@@ -315,7 +315,7 @@ class WP_Media_Organiser_Admin
 
         // Prepare notice data
         $notice_data = array(
-            'notice_type' => 'Pre-save',
+            'notice_type' => 'Preview',
             'media_items' => array(),
             'post_info' => array(
                 'post_id' => $post_id,
@@ -361,7 +361,7 @@ class WP_Media_Organiser_Admin
 // Render the notice
         echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
             'post.php',
-            'pre-save',
+            'preview',
             $notice_data
         );
         ?>

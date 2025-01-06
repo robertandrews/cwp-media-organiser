@@ -1,18 +1,10 @@
 <ul class="media-items-list">
     {{#media_items}}
-        <li class="media-item {{status_class}}">
-            {{{components.component-thumbnail}}}
-            <div class="media-content">
-                <div class="media-info">
-                    {{{components.component-media-info}}}
-                </div>
-                {{#is_correct}}
-                    {{> components/media-operation/media-operation-preview-correct}}
-                {{/is_correct}}
-                {{#needs_move}}
-                    {{> components/media-operation/media-operation-preview-move}}
-                {{/needs_move}}
-            </div>
-        </li>
+        {{#is_correct}}
+            {{> components/media-item/component-media-item-correct}}
+        {{/is_correct}}
+        {{#needs_move}}
+            {{> components/media-item/component-media-item-move}}
+        {{/needs_move}}
     {{/media_items}}
 </ul> 

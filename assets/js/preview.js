@@ -47,7 +47,7 @@ jQuery(document).ready(function ($) {
 
                     // Prepare notice data
                     const noticeData = {
-                        notice_type: 'Pre-save',
+                        notice_type: 'Preview',
                         media_items: response.data.map(item => ({
                             media_id: item.id,
                             media_title: item.title || '',
@@ -55,7 +55,7 @@ jQuery(document).ready(function ($) {
                             thumbnail_url: item.thumbnail_url || '',
                             status: item.status,
                             status_class: item.status.replace('will_', ''),
-                            operation_text: wpMediaOrganiser.noticeConfig.operation_text['pre-save'][item.status],
+                            operation_text: wpMediaOrganiser.noticeConfig.operation_text['preview'][item.status],
                             current_path: item.current_path,
                             paths_match: item.status === 'correct',
                             is_pre_save: true,
@@ -79,7 +79,7 @@ jQuery(document).ready(function ($) {
                     try {
                         // Initialize renderer if needed and render notice
                         const renderer = await ensureNoticeRenderer();
-                        const html = await renderer.renderNotice('post.php', 'pre-save', noticeData);
+                        const html = await renderer.renderNotice('post.php', 'preview', noticeData);
                         console.log('Rendered HTML:', html);
 
                         // Update notice container

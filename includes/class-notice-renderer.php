@@ -64,7 +64,7 @@ class CWP_Media_Organiser_Notice_Renderer
         $variant = $this->get_variant_template($context, $type);
         if (!$variant) {
             $this->logger->log("No variant template found for context: $context, type: $type", 'debug');
-            return ''; // No notice for this combination (e.g., edit.php pre-save)
+            return ''; // No notice for this combination (e.g., edit.php preview)
         }
 
         $this->logger->log("Using variant template: " . $variant, 'debug');
@@ -83,6 +83,11 @@ class CWP_Media_Organiser_Notice_Renderer
                     $item['components']['component-thumbnail'] = $this->mustache->render('components/component-thumbnail', $item);
                     $item['components']['component-media-info'] = $this->mustache->render('components/component-media-info', $item);
                     $item['components']['component-operation-text'] = $this->mustache->render('components/component-operation-text', $item);
+
+                    // Pre-render path components
+                    $item['components']['component-path-wrong'] = $this->mustache->render('components/media-path/component-path-wrong', $item);
+                    $item['components']['component-path-preferred-move'] = $this->mustache->render('components/media-path/component-path-preferred-move', $item);
+                    $item['components']['component-path-preferred-correct'] = $this->mustache->render('components/media-path/component-path-preferred-correct', $item);
 
                     // Add path display flags based on status
                     $item['show_current_path'] = !$item['paths_match'];
@@ -109,7 +114,7 @@ class CWP_Media_Organiser_Notice_Renderer
     private function get_variant_template($context, $type)
     {
         if ($context === 'post.php') {
-            return $type === 'pre-save' ? 'variants/variant-post-pre-save' : 'variants/variant-post-after-save';
+            return $type === 'preview' ? 'variants/variant-post-preview' : 'variants/variant-post-after-save';
         } elseif ($context === 'edit.php' && $type === 'post-save') {
             return 'variants/variant-list-after-save';
         }

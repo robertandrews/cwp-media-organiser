@@ -15,7 +15,7 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 console.log('Loading templates from:', templatesUrl);
 
                 // Load variants
-                const variants = ['variant-post-pre-save', 'variant-post-after-save', 'variant-list-after-save'];
+                const variants = ['variant-post-preview', 'variant-post-after-save', 'variant-list-after-save'];
                 for (const variant of variants) {
                     try {
                         const response = await fetch(`${templatesUrl}/variants/${variant}.html?_=${Date.now()}`);
@@ -155,7 +155,7 @@ if (typeof window.NoticeRenderer === 'undefined') {
 
         getVariantTemplate(context, type) {
             if (context === 'post.php') {
-                return type === 'pre-save' ? 'variants/variant-post-pre-save' : 'variants/variant-post-after-save';
+                return type === 'preview' ? 'variants/variant-post-preview' : 'variants/variant-post-after-save';
             } else if (context === 'edit.php' && type === 'post-save') {
                 return 'variants/variant-list-after-save';
             }
