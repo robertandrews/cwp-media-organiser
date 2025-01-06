@@ -22,7 +22,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/core/class-activator.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-media-processor.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-logger.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-notice-config.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-notice-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-admin.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-notice-renderer.php';
 
