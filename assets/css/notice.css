@@ -69,19 +69,19 @@ a {
 }
 
 /* Status Colors */
-.correct .operation-text {
+.operation-text.correct {
     color: var(--color-success);
 }
 
-.move .operation-text {
+.operation-text.moved {
     color: var(--color-warning);
 }
 
-.fail .operation-text {
+.operation-text.failed {
     color: var(--color-error);
 }
 
-.skip .operation-text {
+.operation-text.skipped {
     color: var(--color-neutral);
 }
 

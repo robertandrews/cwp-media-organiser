@@ -232,7 +232,7 @@ class WP_Media_Organiser_Admin
                         $post_id = intval($matches[1]);
                         $post_data = array(
                             'post_id' => $post_id,
-                            'post_title' => $matches[2],
+                            'post_title' => html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
                             'media_count' => intval($matches[3]),
                             'post_edit_url' => get_edit_post_link($post_id),
                             'media_items' => array(),

@@ -1,15 +1,15 @@
 <!-- Main notice template -->
 <div class="notice {{notice_class}} is-dismissible media-organiser-notice" data-notice-type="{{notice_type}}">
-    <h2 class="notice-title">{{notice_type}}: Media files organization</h2>
+    <h2 class="notice-title"><!--{{notice_type}}: -->Media Organizer</h2>
     
     {{! Summary is only shown on the media list page (edit.php) for bulk operations, not on individual post edit screens }}
     {{#show_summary}}
         <div class="summary-counts">
             <p>Processed {{processed}} posts: 
-                <span class="dashicons dashicons-yes-alt" style="color: var(--color-success)"></span> {{already_organized}} already organized, 
+                <span class="dashicons dashicons-yes-alt" style="color: var(--color-success)"></span> {{already_organized}} already organised, 
                 <span class="dashicons dashicons-yes-alt" style="color: var(--color-warning)"></span> {{success}} moved, 
-                <span class="dashicons dashicons-warning" style="color: var(--color-error)"></span> {{failed}} failed, 
-                <span class="dashicons dashicons-warning" style="color: var(--color-neutral)"></span> {{skipped}} skipped
+                <span class="dashicons dashicons-dismiss" style="color: var(--color-error)"></span> {{failed}} failed, 
+                <span class="dashicons dashicons-clock" style="color: var(--color-neutral)"></span> {{skipped}} skipped
             </p>
         </div>
     {{/show_summary}}
@@ -24,7 +24,7 @@
             </span>
             <ul class="media-items-list">
             {{#media_items}}
-                <li class="media-item {{status_class}}">
+                <li class="media-item">
                     <div class="media-thumbnail">
                         <img src="{{thumbnail_url}}" alt="{{media_title}}">
                     </div>
@@ -49,7 +49,7 @@
     {{^posts}}
         <ul class="media-items-list">
         {{#media_items}}
-            <li class="media-item {{status_class}}">
+            <li class="media-item">
                 <div class="media-thumbnail">
                     <img src="{{thumbnail_url}}" alt="{{media_title}}">
                 </div>
