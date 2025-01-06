@@ -283,8 +283,8 @@ class WP_Media_Organiser_Processor
 
         $attachment = get_post($attachment_id);
         $upload_dir = wp_upload_dir();
-        $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
-        $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
+        $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $this->normalize_path($old_file));
+        $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $this->normalize_path($new_file));
 
         if ($old_url === $new_url) {
             $this->logger->log("No URL update needed for '{$attachment->post_title}' - URLs are identical", 'debug');
@@ -591,13 +591,21 @@ class WP_Media_Organiser_Processor
 
     /**
      * Normalize a file path for consistent comparison
+     *
+     * @param string $path The path to normalize
+     * @param bool $convert_case Whether to convert to lowercase (default: true)
+     * @return string The normalized path
      */
-    private function normalize_path($path)
+    private function normalize_path($path, $convert_case = true)
     {
         // Convert backslashes to forward slashes
         $path = str_replace('\\', '/', $path);
 
-        // Convert to lowercase for case-insensitive comparison
-        return strtolower($path);
+        // Convert to lowercase for case-insensitive comparison if requested
+        if ($convert_case) {
+            $path = strtolower($path);
+        }
+
+        return $path;
     }
 }

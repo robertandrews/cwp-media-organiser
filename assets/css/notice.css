@@ -1,9 +1,20 @@
 /* Color Palette */
 :root {
+    /* Status Colors */
     --color-success: #46b450;
     --color-warning: #ffb900;
     --color-error: #dc3232;
     --color-neutral: #888888;
+
+    /* Path Component Colors */
+    --path-post-type-bg: #ffebee;
+    --path-post-type-color: #c62828;
+    --path-taxonomy-bg: #e8f5e9;
+    --path-taxonomy-color: #2e7d32;
+    --path-term-bg: #e3f2fd;
+    --path-term-color: #1565c0;
+    --path-post-identifier-bg: #fff3e0;
+    --path-post-identifier-color: #ef6c00;
 }
 
 /* Notice Container */
@@ -92,23 +103,23 @@ a {
 }
 
 .path-post-type {
-    background-color: #ffebee;
-    color: #c62828;
+    background-color: var(--path-post-type-bg);
+    color: var(--path-post-type-color);
 }
 
 .path-taxonomy {
-    background-color: #e8f5e9;
-    color: #2e7d32;
+    background-color: var(--path-taxonomy-bg);
+    color: var(--path-taxonomy-color);
 }
 
 .path-term {
-    background-color: #e3f2fd;
-    color: #1565c0;
+    background-color: var(--path-term-bg);
+    color: var(--path-term-color);
 }
 
 .path-post-identifier {
-    background-color: #fff3e0;
-    color: #ef6c00;
+    background-color: var(--path-post-identifier-bg);
+    color: var(--path-post-identifier-color);
 }
 
 /* Path Display */

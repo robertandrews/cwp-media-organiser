@@ -21,23 +21,23 @@
 }
 
 .wp-media-organiser-preview .post-type {
-    background-color: #ffebee;
-    color: #c62828;
+    background-color: var(--path-post-type-bg);
+    color: var(--path-post-type-color);
 }
 
 .wp-media-organiser-preview .taxonomy {
-    background-color: #e8f5e9;
-    color: #2e7d32;
+    background-color: var(--path-taxonomy-bg);
+    color: var(--path-taxonomy-color);
 }
 
 .wp-media-organiser-preview .term {
-    background-color: #e3f2fd;
-    color: #1565c0;
+    background-color: var(--path-term-bg);
+    color: var(--path-term-color);
 }
 
 .wp-media-organiser-preview .post-identifier {
-    background-color: #fff3e0;
-    color: #ef6c00;
+    background-color: var(--path-post-identifier-bg);
+    color: var(--path-post-identifier-color);
 }
 
 .wp-media-organiser-form {

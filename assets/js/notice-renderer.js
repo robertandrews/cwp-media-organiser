@@ -10,9 +10,7 @@ if (typeof window.NoticeRenderer === 'undefined') {
             if (this.initialized) return;
 
             try {
-                // Get templates URL from PHP
                 const templatesUrl = window.cwpMediaOrganiser.templatesUrl;
-                console.log('Loading templates from:', templatesUrl);
 
                 // Load main notice template
                 try {
@@ -20,7 +18,6 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const content = await response.text();
                     this.templates['notice'] = content;
-                    console.log('Loaded notice template');
                 } catch (error) {
                     console.error('Failed to load notice template:', error);
                     throw error;
@@ -28,28 +25,18 @@ if (typeof window.NoticeRenderer === 'undefined') {
 
                 // Load components
                 const components = [
-                    'component-title',
-                    'component-summary-counts',
-                    'component-post-info',
-                    'component-media-items-list',
-                    'component-thumbnail',
-                    'component-media-info',
                     'media-operation/component-operation-text',
-                    'media-path/component-path-wrong',
-                    'media-path/component-path-preferred-correct',
-                    'media-path/component-path-preferred-move',
                     'media-operation/media-operation-preview-correct',
                     'media-operation/media-operation-preview-move'
                 ];
 
-                // Load all components first
+                // Load all components
                 for (const component of components) {
                     try {
                         const response = await fetch(`${templatesUrl}/components/${component}.html?_=${Date.now()}`);
                         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                         const content = await response.text();
                         this.components[`components/${component}`] = content;
-                        console.log(`Loaded component template: ${component}`);
                     } catch (error) {
                         console.error(`Failed to load component template ${component}:`, error);
                         throw error;
@@ -57,15 +44,43 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 }
 
                 this.initialized = true;
-                console.log('Notice renderer initialization complete');
             } catch (error) {
                 console.error('Failed to initialize notice renderer:', error);
                 throw error;
             }
         }
 
+        prepareNoticeData(data, context, type) {
+            const noticeData = {
+                notice_type: type,
+                notice_class: type === 'preview' ? 'notice-warning' : 'notice-success',
+                show_summary: context === 'edit.php',
+                media_items: data.media_items ? data.media_items.map(item => ({
+                    media_id: item.id || item.media_id,
+                    media_title: item.title || item.media_title || '',
+                    media_edit_url: `/wp-admin/post.php?post=${item.id || item.media_id}&action=edit`,
+                    thumbnail_url: item.thumbnail_url || '',
+                    status: item.status,
+                    status_class: item.status.replace('will_', ''),
+                    operation_text: wpMediaOrganiser.noticeConfig.operation_text[type === 'preview' ? 'preview' : 'post-save'][item.status],
+                    current_path: item.current_path,
+                    paths_match: type === 'preview' ? item.status === 'correct' : item.paths_match,
+                    is_preview: type === 'preview',
+                    post_type: item.post_type,
+                    taxonomy: item.taxonomy,
+                    term: item.term,
+                    year: item.year,
+                    month: item.month,
+                    post_id: item.post_id,
+                    filename: item.filename
+                })) : [],
+                post_info: data.post_info || {}
+            };
+
+            return noticeData;
+        }
+
         renderComponent(name, data) {
-            console.log(`Rendering component ${name} with data:`, data);
             const template = this.components[`components/${name}`];
             if (!template) {
                 console.error(`Component template ${name} not found`);
@@ -76,49 +91,24 @@ if (typeof window.NoticeRenderer === 'undefined') {
 
         async renderNotice(context, type, data) {
             if (!this.initialized) {
-                console.log('Initializing notice renderer before rendering...');
                 await this.init();
             }
 
-            console.log(`Rendering notice for context: ${context}, type: ${type}`, data);
-
             try {
-                // Add notice display properties
-                const renderData = {
-                    ...data,
-                    notice_type: type,
-                    notice_class: type === 'preview' ? 'notice-warning' : 'notice-success',
-                    show_summary: context === 'edit.php',
-                    components: {}
-                };
-
-                // Pre-render components that don't need media item context
-                console.log('Rendering title component with data:', renderData);
-                renderData.components['component-title'] = Mustache.render(this.components['components/component-title'], renderData);
-
-                console.log('Rendering summary counts component with data:', renderData);
-                renderData.components['component-summary-counts'] = Mustache.render(this.components['components/component-summary-counts'], renderData);
-
-                console.log('Rendering post info component with data:', renderData);
-                renderData.components['component-post-info'] = Mustache.render(this.components['components/component-post-info'], renderData);
+                // Prepare notice data
+                const renderData = this.prepareNoticeData(data, context, type);
 
                 // For each media item, pre-render its components
                 if (renderData.media_items) {
                     renderData.media_items = renderData.media_items.map(item => {
-                        console.log('Processing media item:', item);
                         const itemContext = {
                             ...item,
                             components: {}
                         };
 
                         // Pre-render each component for this media item
-                        console.log('Rendering thumbnail component with data:', item);
                         itemContext.components['component-thumbnail'] = Mustache.render(this.components['components/component-thumbnail'], item);
-
-                        console.log('Rendering media info component with data:', item);
                         itemContext.components['component-media-info'] = Mustache.render(this.components['components/component-media-info'], item);
-
-                        console.log('Rendering operation text component with data:', item);
                         itemContext.components['component-operation-text'] = Mustache.render(this.components['components/component-operation-text'], item);
 
                         // Add path display flags based on status
@@ -131,13 +121,8 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     });
                 }
 
-                // Pre-render the media items list with the processed items
-                console.log('Rendering media items list component with data:', renderData);
-                renderData.components['component-media-items-list'] = Mustache.render(this.components['components/component-media-items-list'], renderData);
-
                 // Render the final notice with all components
                 const html = Mustache.render(this.templates['notice'], renderData);
-                console.log("Successfully rendered notice");
                 return html;
             } catch (error) {
                 console.error("Error rendering notice:", error);

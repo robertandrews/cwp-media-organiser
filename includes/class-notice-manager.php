@@ -159,83 +159,13 @@ class CWP_Media_Organiser_Notice_Manager
     }
 
     /**
-     * Prepare media items data for notice display
+     * Extract path from message with various formats
+     *
+     * @param string $message The message containing the path
+     * @param string $type The type of path to extract ('current', 'new', or 'single')
+     * @return string The extracted path
      */
-    public function prepare_media_items_data($post_messages)
-    {
-        $this->logger->log("Preparing media items data from messages: " . print_r($post_messages, true), 'debug');
-        $media_items = array();
-        foreach ($post_messages as $message) {
-            if (empty($message['items'])) {
-                continue;
-            }
-
-            foreach ($message['items'] as $item_text) {
-                // Parse the media item text
-                if (preg_match('/Media ID (\d+) \("([^"]+)"\): (.+)/', $item_text, $matches)) {
-                    $media_id = intval($matches[1]);
-                    $media_title = $matches[2];
-                    $operation_text = $matches[3];
-
-                    // Extract paths from the operation text
-                    $current_path = '';
-                    $preferred_path = '';
-                    $status = 'correct';
-
-                    if (strpos($operation_text, 'Already in correct location') !== false) {
-                        if (preg_match('/<code>([^<]+)<\/code>/', $operation_text, $path_matches)) {
-                            $current_path = $this->normalize_path($path_matches[1]);
-                            $preferred_path = $current_path;
-                            $status = 'correct';
-                        }
-                    } else {
-                        if (preg_match('/from <del><code>([^<]+)<\/code><\/del> to <code>([^<]+)<\/code>/', $operation_text, $path_matches)) {
-                            $current_path = $this->normalize_path($path_matches[1]);
-                            $preferred_path = $this->normalize_path($path_matches[2]);
-                            $status = 'moved';
-                        }
-                    }
-
-                    $media_item = array(
-                        'media_id' => $media_id,
-                        'media_title' => $media_title,
-                        'media_edit_url' => get_edit_post_link($media_id),
-                        'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
-                        'status' => $status,
-                        'status_class' => $status,
-                        'operation_text' => $this->get_operation_text($status),
-                        'current_path' => $current_path,
-                        'paths_match' => ($current_path === $preferred_path),
-                        'is_preview' => false,
-                    );
-
-                    // Extract path components from preferred path
-                    $path_parts = explode('/', trim($preferred_path, '/'));
-                    foreach ($path_parts as $part) {
-                        if (preg_match('/^\d{4}$/', $part)) {
-                            $media_item['year'] = $part;
-                        } elseif (preg_match('/^\d{2}$/', $part)) {
-                            $media_item['month'] = $part;
-                        } elseif ($part === 'post' || $part === 'page') {
-                            $media_item['post_type'] = $part;
-                        } elseif ($part === 'client' || $part === 'category') {
-                            $media_item['taxonomy'] = $part;
-                        } elseif (preg_match('/\.(jpg|jpeg|png|gif)$/i', $part)) {
-                            $media_item['filename'] = $part;
-                        }
-                    }
-
-                    $media_items[] = $media_item;
-                }
-            }
-        }
-        return $media_items;
-    }
-
-    /**
-     * Extract path from message
-     */
-    private function extract_path($message, $type)
+    private function extract_path($message, $type = 'single')
     {
         if ($type === 'current') {
             if (preg_match('/<del><code>(.*?)<\/code><\/del>/', $message, $matches)) {
@@ -245,6 +175,8 @@ class CWP_Media_Organiser_Notice_Manager
             }
         } else if ($type === 'new' && preg_match('/to <code.*?>(.*?)<\/code>/', $message, $matches)) {
             return $matches[1]; // Already normalized and color-coded
+        } else if ($type === 'single' && preg_match('/<code>([^<]+)<\/code>/', $message, $matches)) {
+            return $this->normalize_path($matches[1]);
         }
         return '';
     }
@@ -528,5 +460,75 @@ echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
             'nonce' => wp_create_nonce('wp_media_organiser_preview'),
             'templatesUrl' => $this->plugin_url . 'templates/notice',
         ));
+    }
+
+    /**
+     * Prepare media items data for notice display
+     */
+    public function prepare_media_items_data($post_messages)
+    {
+        $this->logger->log("Preparing media items data from messages: " . print_r($post_messages, true), 'debug');
+        $media_items = array();
+        foreach ($post_messages as $message) {
+            if (empty($message['items'])) {
+                continue;
+            }
+
+            foreach ($message['items'] as $item_text) {
+                // Parse the media item text
+                if (preg_match('/Media ID (\d+) \("([^"]+)"\): (.+)/', $item_text, $matches)) {
+                    $media_id = intval($matches[1]);
+                    $media_title = $matches[2];
+                    $operation_text = $matches[3];
+
+                    // Extract paths from the operation text
+                    $current_path = '';
+                    $preferred_path = '';
+                    $status = 'correct';
+
+                    if (strpos($operation_text, 'Already in correct location') !== false) {
+                        $current_path = $this->extract_path($operation_text, 'single');
+                        $preferred_path = $current_path;
+                        $status = 'correct';
+                    } else {
+                        $current_path = $this->extract_path($operation_text, 'current');
+                        $preferred_path = $this->extract_path($operation_text, 'new');
+                        $status = 'moved';
+                    }
+
+                    $media_item = array(
+                        'media_id' => $media_id,
+                        'media_title' => $media_title,
+                        'media_edit_url' => get_edit_post_link($media_id),
+                        'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
+                        'status' => $status,
+                        'status_class' => $status,
+                        'operation_text' => $this->get_operation_text($status),
+                        'current_path' => $current_path,
+                        'paths_match' => ($current_path === $preferred_path),
+                        'is_preview' => false,
+                    );
+
+                    // Extract path components from preferred path
+                    $path_parts = explode('/', trim($preferred_path, '/'));
+                    foreach ($path_parts as $part) {
+                        if (preg_match('/^\d{4}$/', $part)) {
+                            $media_item['year'] = $part;
+                        } elseif (preg_match('/^\d{2}$/', $part)) {
+                            $media_item['month'] = $part;
+                        } elseif ($part === 'post' || $part === 'page') {
+                            $media_item['post_type'] = $part;
+                        } elseif ($part === 'client' || $part === 'category') {
+                            $media_item['taxonomy'] = $part;
+                        } elseif (preg_match('/\.(jpg|jpeg|png|gif)$/i', $part)) {
+                            $media_item['filename'] = $part;
+                        }
+                    }
+
+                    $media_items[] = $media_item;
+                }
+            }
+        }
+        return $media_items;
     }
 }

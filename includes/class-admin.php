@@ -53,11 +53,12 @@ class WP_Media_Organiser_Admin
         add_action('wp_ajax_wp_media_organiser_preview', array($this, 'ajax_get_preview_paths'));
     }
 
-    /**
-     * Handle media reorganization on post save
-     */
-    public function handle_save_post($post_id, $post, $update)
+    private function log_save_post_debug($post_id, $post, $update)
     {
+        if (!WP_DEBUG) {
+            return;
+        }
+
         $this->logger->log("=== Starting handle_save_post ===", 'debug');
         $this->logger->log("Post ID: $post_id", 'debug');
         $this->logger->log("Post Type: {$post->post_type}", 'debug');
@@ -76,6 +77,14 @@ class WP_Media_Organiser_Admin
             $line = isset($trace['line']) ? $trace['line'] : 'unknown';
             $this->logger->log("  #{$index} {$caller} in {$file}:{$line}", 'debug');
         }
+    }
+
+    /**
+     * Handle media reorganization on post save
+     */
+    public function handle_save_post($post_id, $post, $update)
+    {
+        $this->log_save_post_debug($post_id, $post, $update);
 
         // Skip if this is an autosave
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
@@ -158,9 +167,11 @@ class WP_Media_Organiser_Admin
      */
     public function register_bulk_actions($bulk_actions)
     {
-        $this->logger->log("Register bulk actions called. Current actions: " . print_r($bulk_actions, true), 'debug');
+        $this->logger->log("=== Register bulk actions called ===", 'debug');
+        $this->logger->log("Current actions: " . print_r($bulk_actions, true), 'debug');
         $bulk_actions['reorganize_media'] = __('Reorganize Media', 'wp-media-organiser');
         $this->logger->log("Added reorganize_media action", 'debug');
+        $this->logger->log("Final actions: " . print_r($bulk_actions, true), 'debug');
         return $bulk_actions;
     }
 
@@ -169,12 +180,23 @@ class WP_Media_Organiser_Admin
      */
     public function handle_bulk_action($redirect_to, $doaction, $post_ids)
     {
+        $this->logger->log("=== Starting bulk action handler ===", 'debug');
+        $this->logger->log("Action: $doaction", 'debug');
+        $this->logger->log("Post IDs: " . implode(', ', $post_ids), 'debug');
+
         if ($doaction !== 'reorganize_media') {
+            $this->logger->log("Skipping: Not a reorganize_media action", 'debug');
             return $redirect_to;
         }
 
-        $this->logger->log("Handling bulk action for posts: " . implode(', ', $post_ids), 'info');
+        $this->logger->log("Processing bulk media reorganization for " . count($post_ids) . " posts", 'info');
         $results = $this->processor->bulk_reorganize_media($post_ids);
+
+        $this->logger->log("Bulk action results:", 'debug');
+        $this->logger->log("  Success: {$results['success']}", 'debug');
+        $this->logger->log("  Already organized: {$results['already_organized']}", 'debug');
+        $this->logger->log("  Failed: {$results['failed']}", 'debug');
+        $this->logger->log("  Skipped: {$results['skipped']}", 'debug');
 
         $redirect_to = add_query_arg(array(
             'bulk_reorganize_media' => '1',
@@ -187,6 +209,10 @@ class WP_Media_Organiser_Admin
 
         // Store messages in transient for display
         set_transient('wp_media_organiser_bulk_messages', $results['post_messages'], 30);
+        $this->logger->log("Stored bulk action messages in transient", 'debug');
+
+        $this->logger->log("=== Completed bulk action handler ===", 'debug');
+        $this->logger->log("Redirecting to: $redirect_to", 'debug');
 
         return $redirect_to;
     }
@@ -196,50 +222,71 @@ class WP_Media_Organiser_Admin
      */
     public function ajax_get_preview_paths()
     {
+        $this->logger->log("=== Starting AJAX preview paths handler ===", 'debug');
         check_ajax_referer('wp_media_organiser_preview', 'nonce');
 
         $post_id = intval($_POST['post_id']);
         if (!$post_id) {
+            $this->logger->log("Invalid post ID provided", 'error');
             wp_send_json_error('Invalid post ID');
         }
 
         $post = get_post($post_id);
         if (!$post) {
+            $this->logger->log("Post not found for ID: $post_id", 'error');
             wp_send_json_error('Post not found');
         }
+
+        $this->logger->log("Processing preview for post: '{$post->post_title}' (ID: $post_id)", 'debug');
 
         // Create a temporary copy of the post for path generation
         $temp_post = clone $post;
 
         // If a post slug was provided and slug is used as identifier
         if (isset($_POST['post_slug']) && $this->settings->get_setting('post_identifier') === 'slug') {
+            $old_slug = $temp_post->post_name;
             $temp_post->post_name = sanitize_title($_POST['post_slug']);
+            $this->logger->log("Updated post slug for preview from '$old_slug' to '{$temp_post->post_name}'", 'debug');
         }
 
         // If taxonomy is enabled in settings, handle term selection/deselection
         if ($this->settings->get_setting('taxonomy_name')) {
             $taxonomy_name = $this->settings->get_setting('taxonomy_name');
+            $this->logger->log("Processing taxonomy: $taxonomy_name", 'debug');
+
             if (isset($_POST['taxonomy_term'])) {
+                $old_terms = get_the_terms($post_id, $taxonomy_name);
+                $old_term_id = $old_terms && !is_wp_error($old_terms) ? reset($old_terms)->term_id : 0;
+
                 if ($_POST['taxonomy_term'] === '') {
+                    $this->logger->log("Clearing taxonomy terms for preview", 'debug');
                     wp_set_object_terms($post_id, array(), $taxonomy_name);
                 } elseif (is_numeric($_POST['taxonomy_term'])) {
-                    wp_set_object_terms($post_id, intval($_POST['taxonomy_term']), $taxonomy_name);
+                    $new_term_id = intval($_POST['taxonomy_term']);
+                    $this->logger->log("Updating taxonomy term for preview from $old_term_id to $new_term_id", 'debug');
+                    wp_set_object_terms($post_id, $new_term_id, $taxonomy_name);
                 }
             }
         }
 
         // Get preview data
+        $this->logger->log("Generating preview data", 'debug');
         $preview_data = $this->processor->preview_media_reorganization($post_id);
         if (empty($preview_data)) {
+            $this->logger->log("No media files found for post", 'debug');
             wp_send_json_error('No media files found');
         }
+
+        $this->logger->log("Found " . count($preview_data) . " media items to preview", 'debug');
 
         // Enhance preview data with additional media information
         foreach ($preview_data as &$item) {
             $item['title'] = get_the_title($item['id']);
             $item['thumbnail_url'] = wp_get_attachment_image_url($item['id'], 'thumbnail');
+            $this->logger->log("Added preview data for media ID {$item['id']}: {$item['title']}", 'debug');
         }
 
+        $this->logger->log("=== Completed AJAX preview paths handler ===", 'debug');
         wp_send_json_success($preview_data);
     }
 }
