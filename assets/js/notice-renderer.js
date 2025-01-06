@@ -37,13 +37,12 @@ if (typeof window.NoticeRenderer === 'undefined') {
                     'component-media-items-list',
                     'component-thumbnail',
                     'component-media-info',
-                    'component-operation-text',
-                    'component-path-wrong',
-                    'component-path-preferred-correct',
-                    'component-path-preferred-move',
+                    'media-operation/component-operation-text',
+                    'media-path/component-path-wrong',
+                    'media-path/component-path-preferred-correct',
+                    'media-path/component-path-preferred-move',
                     'media-operation/media-operation-preview-correct',
-                    'media-operation/media-operation-preview-move',
-                    'component-error-message'
+                    'media-operation/media-operation-preview-move'
                 ];
 
                 // Load all components first
