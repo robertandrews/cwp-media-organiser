@@ -14,19 +14,16 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 const templatesUrl = window.cwpMediaOrganiser.templatesUrl;
                 console.log('Loading templates from:', templatesUrl);
 
-                // Load variants
-                const variants = ['variant-post-preview', 'variant-post-after-save', 'variant-list-after-save'];
-                for (const variant of variants) {
-                    try {
-                        const response = await fetch(`${templatesUrl}/variants/${variant}.html?_=${Date.now()}`);
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        const content = await response.text();
-                        this.templates[`variants/${variant}`] = content;
-                        console.log(`Loaded variant template: ${variant}`);
-                    } catch (error) {
-                        console.error(`Failed to load variant template ${variant}:`, error);
-                        throw error;
-                    }
+                // Load main notice template
+                try {
+                    const response = await fetch(`${templatesUrl}/notice.html?_=${Date.now()}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const content = await response.text();
+                    this.templates['notice'] = content;
+                    console.log('Loaded notice template');
+                } catch (error) {
+                    console.error('Failed to load notice template:', error);
+                    throw error;
                 }
 
                 // Load components
@@ -83,19 +80,15 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 await this.init();
             }
 
-            const variant = this.getVariantTemplate(context, type);
-            if (!variant) {
-                console.log(`No variant template found for context: ${context}, type: ${type}`);
-                return ''; // No notice for this combination
-            }
-
-            console.log(`Rendering notice with variant: ${variant}`, data);
+            console.log(`Rendering notice for context: ${context}, type: ${type}`, data);
 
             try {
-                // Add notice type to data
+                // Add notice display properties
                 const renderData = {
                     ...data,
-                    notice_type: type.charAt(0).toUpperCase() + type.slice(1),
+                    notice_type: type,
+                    notice_class: type === 'preview' ? 'notice-warning' : 'notice-success',
+                    show_summary: context === 'edit.php',
                     components: {}
                 };
 
@@ -142,24 +135,14 @@ if (typeof window.NoticeRenderer === 'undefined') {
                 console.log('Rendering media items list component with data:', renderData);
                 renderData.components['component-media-items-list'] = Mustache.render(this.components['components/component-media-items-list'], renderData);
 
-                // Render the final variant with all components
-                console.log('Rendering final variant with data:', renderData);
-                const html = Mustache.render(this.templates[variant], renderData);
-                console.log('Successfully rendered notice');
+                // Render the final notice with all components
+                const html = Mustache.render(this.templates['notice'], renderData);
+                console.log("Successfully rendered notice");
                 return html;
             } catch (error) {
-                console.error('Error rendering notice:', error);
+                console.error("Error rendering notice:", error);
                 throw error;
             }
-        }
-
-        getVariantTemplate(context, type) {
-            if (context === 'post.php') {
-                return type === 'preview' ? 'variants/variant-post-preview' : 'variants/variant-post-after-save';
-            } else if (context === 'edit.php' && type === 'post-save') {
-                return 'variants/variant-list-after-save';
-            }
-            return null;
         }
     };
 } 

@@ -11,13 +11,14 @@ class CWP_Media_Organiser_Notice_Renderer
     private $mustache;
     private static $instance = null;
     private $logger;
+    private $initialized = false;
 
     private function __construct()
     {
         $this->logger = WP_Media_Organiser_Logger::get_instance();
         $this->logger->log("=== Initializing Notice Renderer ===", 'debug');
 
-        $templates_dir = plugin_dir_path(dirname(__FILE__)) . 'templates/notices';
+        $templates_dir = plugin_dir_path(dirname(__FILE__)) . 'templates/notice';
         $this->logger->log("Templates directory: " . $templates_dir, 'debug');
 
         $this->mustache = new Mustache_Engine([
@@ -35,14 +36,29 @@ class CWP_Media_Organiser_Notice_Renderer
             'cache' => new Mustache_Cache_NoopCache(),
         ]);
 
-        // Log available templates
-        $this->logger->log("Available templates:", 'debug');
-        foreach (glob($templates_dir . '/variants/*.html') as $file) {
-            $this->logger->log("  Variant: " . basename($file), 'debug');
+        $this->initialize();
+    }
+
+    private function initialize()
+    {
+        if ($this->initialized) {
+            return;
+        }
+
+        $this->logger->log("=== Starting initialize ===", 'debug');
+
+        // Log available templates and components
+        $templates_dir = plugin_dir_path(dirname(__FILE__)) . 'templates/notice';
+        $this->logger->log("Available templates and components:", 'debug');
+        foreach (glob($templates_dir . '/*.html') as $file) {
+            $this->logger->log("  Template: " . basename($file), 'debug');
         }
         foreach (glob($templates_dir . '/components/*.html') as $file) {
             $this->logger->log("  Component: " . basename($file), 'debug');
         }
+
+        $this->initialized = true;
+        $this->logger->log("=== Initialization complete ===", 'debug');
     }
 
     public static function get_instance()
@@ -55,19 +71,15 @@ class CWP_Media_Organiser_Notice_Renderer
 
     public function render_notice($context, $type, $data)
     {
-        $this->logger->log("=== Rendering Notice ===", 'debug');
-        $this->logger->log("Context: " . $context, 'debug');
-        $this->logger->log("Type: " . $type, 'debug');
+        $this->logger->log("=== Starting render_notice ===", 'debug');
+        $this->logger->log("Context: $context", 'debug');
+        $this->logger->log("Type: $type", 'debug');
         $this->logger->log("Data: " . print_r($data, true), 'debug');
 
-        // Determine which variant to use based on context and type
-        $variant = $this->get_variant_template($context, $type);
-        if (!$variant) {
-            $this->logger->log("No variant template found for context: $context, type: $type", 'debug');
-            return ''; // No notice for this combination (e.g., edit.php preview)
-        }
-
-        $this->logger->log("Using variant template: " . $variant, 'debug');
+        // Set notice display properties based on context and type
+        $data['notice_class'] = $type === 'preview' ? 'notice-warning' : 'notice-success';
+        $data['notice_type'] = $type;
+        $data['show_summary'] = $context === 'edit.php';
 
         try {
             // Pre-render components that don't need media item context
@@ -100,8 +112,8 @@ class CWP_Media_Organiser_Notice_Renderer
             // Pre-render the media items list with the processed items
             $data['components']['component-media-items-list'] = $this->mustache->render('components/component-media-items-list', $data);
 
-            // Render the final variant with all components
-            $html = $this->mustache->render($variant, $data);
+            // Render the final notice
+            $html = $this->mustache->render('notice', $data);
             $this->logger->log("Successfully rendered notice", 'debug');
             $this->logger->log("HTML output: " . $html, 'debug');
             return $html;
@@ -111,18 +123,8 @@ class CWP_Media_Organiser_Notice_Renderer
         }
     }
 
-    private function get_variant_template($context, $type)
-    {
-        if ($context === 'post.php') {
-            return $type === 'preview' ? 'variants/variant-post-preview' : 'variants/variant-post-after-save';
-        } elseif ($context === 'edit.php' && $type === 'post-save') {
-            return 'variants/variant-list-after-save';
-        }
-        return null;
-    }
-
     public function get_templates_url()
     {
-        return plugin_dir_url(dirname(__FILE__)) . 'templates/notices';
+        return plugin_dir_url(dirname(__FILE__)) . 'templates/notice';
     }
 }
