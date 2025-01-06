@@ -16,11 +16,27 @@
     margin: 0 0 5px;
 }
 
+/* Summary */
+.summary-counts {
+    margin: 10px 0;
+    background: #f8f8f8;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+.summary-counts p {
+    margin: 0;
+}
+
 /* Media Items */
 .media-items-list {
     margin: 10px 0;
     padding: 0;
     list-style: none;
+}
+
+.post-section .media-items-list {
+    margin-left: 20px;
 }
 
 .media-item {
@@ -67,11 +83,6 @@ a {
 
 .skip .operation-text {
     color: var(--color-neutral);
-}
-
-/* Summary Counts */
-.summary-counts span {
-    margin-right: 15px;
 }
 
 /* Path Components */

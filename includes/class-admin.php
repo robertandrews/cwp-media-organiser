@@ -209,30 +209,53 @@ class WP_Media_Organiser_Admin
             }
 
             $post_messages = get_transient('wp_media_organiser_bulk_messages');
+            $this->logger->log("Post messages from transient: " . print_r($post_messages, true), 'debug');
             delete_transient('wp_media_organiser_bulk_messages');
 
             $notice_data = array(
-                'counts' => array(
-                    'success' => intval($_REQUEST['success']),
-                    'already_organized' => intval($_REQUEST['already_organized']),
-                    'failed' => intval($_REQUEST['failed']),
-                    'skipped' => intval($_REQUEST['skipped']),
-                ),
+                'show_summary' => true,
+                'processed' => intval($_REQUEST['processed']),
+                'success' => intval($_REQUEST['success']),
+                'already_organized' => intval($_REQUEST['already_organized']),
+                'failed' => intval($_REQUEST['failed']),
+                'skipped' => intval($_REQUEST['skipped']),
             );
 
             if (!empty($post_messages)) {
-                // Extract post info from the first message
-                if (isset($post_messages[0])) {
-                    if (preg_match('/Post ID (\d+): "([^"]+)" \((\d+) media items\)/', $post_messages[0]['title'], $matches)) {
-                        $notice_data['post'] = array(
-                            'id' => intval($matches[1]),
-                            'title' => $matches[2],
+                $posts = array();
+
+                foreach ($post_messages as $message) {
+                    $this->logger->log("Processing message: " . print_r($message, true), 'debug');
+
+                    // Extract post info from the message
+                    if (preg_match('/Post ID (\d+): "([^"]+)" \((\d+) media items\)/', $message['title'], $matches)) {
+                        $post_id = intval($matches[1]);
+                        $post_data = array(
+                            'post_id' => $post_id,
+                            'post_title' => $matches[2],
                             'media_count' => intval($matches[3]),
+                            'post_edit_url' => get_edit_post_link($post_id),
+                            'media_items' => array(),
                         );
+
+                        // Add media items for this post
+                        if (!empty($message['items'])) {
+                            $post_data['media_items'] = $this->prepare_media_items_data(array(
+                                array('items' => $message['items']),
+                            ));
+                            $this->logger->log("Prepared media items for post $post_id: " . print_r($post_data['media_items'], true), 'debug');
+                        }
+
+                        $posts[] = $post_data;
                     }
                 }
-                $notice_data['media_items'] = $this->prepare_media_items_data($post_messages);
+
+                if (!empty($posts)) {
+                    $notice_data['posts'] = $posts;
+                }
             }
+
+            $this->logger->log("Final notice data: " . print_r($notice_data, true), 'debug');
 
             echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
                 'edit.php', // we're on the list screen
@@ -374,33 +397,76 @@ class WP_Media_Organiser_Admin
      */
     private function prepare_media_items_data($post_messages)
     {
+        $this->logger->log("Preparing media items data from messages: " . print_r($post_messages, true), 'debug');
         $media_items = array();
         foreach ($post_messages as $message) {
-            if (empty($message['media_items'])) {
+            if (empty($message['items'])) {
                 continue;
             }
 
-            foreach ($message['media_items'] as $item) {
-                $media_id = $item['id'];
-                $current_path = $this->normalize_path($item['current_path']);
-                $preferred_path = $this->normalize_path($item['preferred_path']);
-                $paths_match = ($current_path === $preferred_path);
+            foreach ($message['items'] as $item_text) {
+                // Parse the media item text
+                if (preg_match('/Media ID (\d+) \("([^"]+)"\): (.+)/', $item_text, $matches)) {
+                    $media_id = intval($matches[1]);
+                    $media_title = $matches[2];
+                    $operation_text = $matches[3];
 
-                $media_items[] = array(
-                    'media_id' => $media_id,
-                    'media_title' => get_the_title($media_id),
-                    'media_edit_url' => get_edit_post_link($media_id),
-                    'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
-                    'status' => $item['status'],
-                    'status_class' => str_replace('will_', '', $item['status']), // Convert will_move to move, etc.
-                    'operation_text' => $this->get_operation_text($item['status']),
-                    'current_path' => $current_path,
-                    'colored_path' => $this->color_code_path_components($preferred_path),
-                    'paths_match' => $paths_match,
-                    'is_preview' => false, // This method is only used for post-save notices
-                );
+                    // Extract paths from the operation text
+                    $current_path = '';
+                    $preferred_path = '';
+                    $status = 'correct';
+
+                    if (strpos($operation_text, 'Already in correct location') !== false) {
+                        if (preg_match('/<code>([^<]+)<\/code>/', $operation_text, $path_matches)) {
+                            $current_path = $this->normalize_path($path_matches[1]);
+                            $preferred_path = $current_path;
+                            $status = 'correct';
+                        }
+                    } else {
+                        if (preg_match('/from <del><code>([^<]+)<\/code><\/del> to <code>([^<]+)<\/code>/', $operation_text, $path_matches)) {
+                            $current_path = $this->normalize_path($path_matches[1]);
+                            $preferred_path = $this->normalize_path($path_matches[2]);
+                            $status = 'moved';
+                        }
+                    }
+
+                    $media_item = array(
+                        'media_id' => $media_id,
+                        'media_title' => $media_title,
+                        'media_edit_url' => get_edit_post_link($media_id),
+                        'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
+                        'status' => $status,
+                        'status_class' => $status,
+                        'operation_text' => $this->get_operation_text($status),
+                        'current_path' => $current_path,
+                        'paths_match' => ($current_path === $preferred_path),
+                        'is_preview' => false,
+                    );
+
+                    // Extract path components from preferred path
+                    $path_parts = explode('/', trim($preferred_path, '/'));
+                    foreach ($path_parts as $part) {
+                        if (preg_match('/^\d{4}$/', $part)) {
+                            $media_item['year'] = $part;
+                        } elseif (preg_match('/^\d{2}$/', $part)) {
+                            $media_item['month'] = $part;
+                        } elseif ($part === 'post' || $part === 'page') {
+                            $media_item['post_type'] = $part;
+                        } elseif ($part === 'client' || $part === 'category') {
+                            $media_item['taxonomy'] = $part;
+                        } elseif (preg_match('/\.(jpg|jpeg|png|gif)$/i', $part)) {
+                            $media_item['filename'] = $part;
+                        }
+                    }
+
+                    $media_items[] = $media_item;
+                    $this->logger->log("Added media item: " . print_r($media_item, true), 'debug');
+                } else {
+                    $this->logger->log("Failed to parse media item text: " . $item_text, 'debug');
+                }
             }
         }
+        $this->logger->log("Prepared media items: " . print_r($media_items, true), 'debug');
         return $media_items;
     }
 
@@ -540,17 +606,20 @@ class WP_Media_Organiser_Admin
      */
     public function enqueue_preview_scripts($hook)
     {
+        // Enqueue notice styles for both post editing and list screens
+        if (in_array($hook, array('post.php', 'post-new.php', 'edit.php'))) {
+            wp_enqueue_style(
+                'wp-media-organiser-notice',
+                $this->plugin_url . 'assets/css/notice.css',
+                array(),
+                filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/notice.css')
+            );
+        }
+
+        // Only enqueue the preview scripts on post editing screens
         if ($hook !== 'post.php' && $hook !== 'post-new.php') {
             return;
         }
-
-        // Enqueue notice styles
-        wp_enqueue_style(
-            'wp-media-organiser-notice',
-            $this->plugin_url . 'assets/css/notice.css',
-            array(),
-            filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/notice.css')
-        );
 
         // Enqueue Mustache.js first
         wp_enqueue_script(

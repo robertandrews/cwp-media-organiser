@@ -1,8 +1,71 @@
 <!-- Main notice template -->
 <div class="notice {{notice_class}} is-dismissible media-organiser-notice" data-notice-type="{{notice_type}}">
-    {{{components.component-title}}}
+    <h2 class="notice-title">{{notice_type}}: Media files organization</h2>
+    
+    {{! Summary is only shown on the media list page (edit.php) for bulk operations, not on individual post edit screens }}
     {{#show_summary}}
-        {{{components.component-summary-counts}}}
+        <div class="summary-counts">
+            <p>Processed {{processed}} posts: 
+                <span class="dashicons dashicons-yes-alt" style="color: var(--color-success)"></span> {{already_organized}} already organized, 
+                <span class="dashicons dashicons-yes-alt" style="color: var(--color-warning)"></span> {{success}} moved, 
+                <span class="dashicons dashicons-warning" style="color: var(--color-error)"></span> {{failed}} failed, 
+                <span class="dashicons dashicons-warning" style="color: var(--color-neutral)"></span> {{skipped}} skipped
+            </p>
+        </div>
     {{/show_summary}}
-    {{{components.component-media-items-list}}}
+    
+    {{! Post info and media items are shown for each post }}
+    {{#posts}}
+        <div class="post-section">
+            <span class="component-post-info">
+                <p class="post-info">
+                    <strong>Post ID <a href="{{post_edit_url}}">{{post_id}}</a>: "{{post_title}}" ({{media_count}} media items)</strong>
+                </p>
+            </span>
+            <ul class="media-items-list">
+            {{#media_items}}
+                <li class="media-item {{status_class}}">
+                    <div class="media-thumbnail">
+                        <img src="{{thumbnail_url}}" alt="{{media_title}}">
+                    </div>
+                    <div class="media-content">
+                        <div class="media-info">
+                            <a href="{{media_edit_url}}" target="_blank">{{media_title}}</a> (ID: {{media_id}})
+                        </div>
+                        {{#paths_match}}
+                        {{> components/media-operation/media-operation-preview-correct}}
+                        {{/paths_match}}
+                        {{^paths_match}}
+                        {{> components/media-operation/media-operation-preview-move}}
+                        {{/paths_match}}
+                    </div>
+                </li>
+            {{/media_items}}
+            </ul>
+        </div>
+    {{/posts}}
+    
+    {{! For single post view, show media items directly }}
+    {{^posts}}
+        <ul class="media-items-list">
+        {{#media_items}}
+            <li class="media-item {{status_class}}">
+                <div class="media-thumbnail">
+                    <img src="{{thumbnail_url}}" alt="{{media_title}}">
+                </div>
+                <div class="media-content">
+                    <div class="media-info">
+                        <a href="{{media_edit_url}}" target="_blank">{{media_title}}</a> (ID: {{media_id}})
+                    </div>
+                    {{#paths_match}}
+                    {{> components/media-operation/media-operation-preview-correct}}
+                    {{/paths_match}}
+                    {{^paths_match}}
+                    {{> components/media-operation/media-operation-preview-move}}
+                    {{/paths_match}}
+                </div>
+            </li>
+        {{/media_items}}
+        </ul>
+    {{/posts}}
 </div> 

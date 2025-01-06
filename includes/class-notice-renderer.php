@@ -79,28 +79,16 @@ class CWP_Media_Organiser_Notice_Renderer
         // Set notice display properties based on context and type
         $data['notice_class'] = $type === 'preview' ? 'notice-warning' : 'notice-success';
         $data['notice_type'] = $type;
-        $data['show_summary'] = $context === 'edit.php';
+
+        // Only set show_summary if it's not already set
+        if (!isset($data['show_summary'])) {
+            $data['show_summary'] = $context === 'edit.php';
+        }
 
         try {
-            // Pre-render components that don't need media item context
-            $data['components'] = array();
-            $data['components']['component-title'] = $this->mustache->render('components/component-title', $data);
-            $data['components']['component-summary-counts'] = $this->mustache->render('components/component-summary-counts', $data);
-            $data['components']['component-post-info'] = $this->mustache->render('components/component-post-info', $data);
-
-            // For each media item, pre-render its components
+            // For each media item, set its display flags
             if (!empty($data['media_items'])) {
                 foreach ($data['media_items'] as &$item) {
-                    $item['components'] = array();
-                    $item['components']['component-thumbnail'] = $this->mustache->render('components/component-thumbnail', $item);
-                    $item['components']['component-media-info'] = $this->mustache->render('components/component-media-info', $item);
-                    $item['components']['component-operation-text'] = $this->mustache->render('components/component-operation-text', $item);
-
-                    // Pre-render path components
-                    $item['components']['component-path-wrong'] = $this->mustache->render('components/media-path/component-path-wrong', $item);
-                    $item['components']['component-path-preferred-move'] = $this->mustache->render('components/media-path/component-path-preferred-move', $item);
-                    $item['components']['component-path-preferred-correct'] = $this->mustache->render('components/media-path/component-path-preferred-correct', $item);
-
                     // Add path display flags based on status
                     $item['show_current_path'] = !$item['paths_match'];
                     $item['is_correct'] = $item['paths_match'];
@@ -108,9 +96,6 @@ class CWP_Media_Organiser_Notice_Renderer
                     $item['is_dynamic'] = isset($item['is_preview']) && $item['is_preview'];
                 }
             }
-
-            // Pre-render the media items list with the processed items
-            $data['components']['component-media-items-list'] = $this->mustache->render('components/component-media-items-list', $data);
 
             // Render the final notice
             $html = $this->mustache->render('notice', $data);

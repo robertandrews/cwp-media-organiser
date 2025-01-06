@@ -1,7 +1,7 @@
 <!-- Media operation preview for correct path -->
 <div class="media-operation">
-    <div class="operation-text">{{{components.component-operation-text}}}</div>
+    <div class="operation-text">{{operation_text}}</div>
     <div class="path-display">
-        {{{components.component-path-preferred-correct}}}
+        <code class="path-preferred-correct"><span class="dashicons dashicons-yes-alt correct"></span>/wp-content/uploads/{{#post_type}}<span class="path-component path-post-type">{{post_type}}</span>/{{/post_type}}{{#taxonomy}}<span class="path-component path-taxonomy">{{taxonomy}}</span>/{{/taxonomy}}{{#term}}<span class="path-component path-term">{{term}}</span>/{{/term}}{{#year}}{{year}}/{{/year}}{{#month}}{{month}}/{{/month}}{{#post_id}}<span class="path-component path-post-identifier">{{post_id}}</span>/{{/post_id}}{{filename}}</code>
     </div>
 </div> 
