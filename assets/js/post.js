@@ -3,13 +3,65 @@ jQuery(document).ready(function ($) {
     console.log('Settings:', wpMediaOrganiser);
     console.log('Post Identifier Setting:', wpMediaOrganiser.settings.postIdentifier);
 
-    // Store the original template structure on page load
-    let originalTemplate = '';
-    $('.path-preferred-move').each(function () {
-        if (!originalTemplate) {
-            originalTemplate = $(this).html();
+    // Store initial states
+    let initialSlug = $('#editable-post-name-full').text();
+    let initialTaxonomyTermId = '';
+    if (wpMediaOrganiser.settings.taxonomyName) {
+        const $checked = $(`#${wpMediaOrganiser.settings.taxonomyName}checklist input[type="checkbox"]:checked`);
+        initialTaxonomyTermId = $checked.length ? $checked.val() : '';
+    }
+    console.log('Initial states - Slug:', initialSlug, 'Taxonomy Term ID:', initialTaxonomyTermId);
+
+    // Store the original templates
+    let correctTemplate = '';
+    let moveTemplate = '';
+
+    // Store complete media operation templates
+    console.log('Looking for media operation templates...');
+    $('.media-operation').each(function () {
+        console.log('Found media-operation:', $(this).html());
+        if ($(this).find('.path-preferred-correct').length) {
+            correctTemplate = $(this).html();
+            console.log('Stored correct template:', correctTemplate);
+
+            // Create move template from correct template
+            moveTemplate = correctTemplate
+                .replace('operation-text correct">Already in correct location:', 'operation-text move">Will move to:')
+                .replace('path-preferred-correct', 'path-preferred-move')
+                .replace('dashicons-yes-alt correct', 'dashicons-arrow-right-alt move');
+            console.log('Created move template:', moveTemplate);
         }
     });
+
+    async function updatePathDisplayState() {
+        // Check if we're in a different state from initial
+        const currentSlug = $('#editable-post-name-full').text();
+        let currentTaxonomyTermId = '';
+        if (wpMediaOrganiser.settings.taxonomyName) {
+            const $checked = $(`#${wpMediaOrganiser.settings.taxonomyName}checklist input[type="checkbox"]:checked`);
+            currentTaxonomyTermId = $checked.length ? $checked.val() : '';
+        }
+
+        const hasChanged = (currentSlug !== initialSlug || currentTaxonomyTermId !== initialTaxonomyTermId);
+        console.log('State check - Changed:', hasChanged, 'Current Slug:', currentSlug, 'Current Term:', currentTaxonomyTermId);
+
+        // Switch templates based on state
+        console.log('Looking for media operations to update...');
+        $('.media-operation').each(function () {
+            const $operation = $(this);
+            console.log('Found media operation:', $operation.html());
+
+            if (hasChanged) {
+                // Switch to move template
+                $operation.html(moveTemplate);
+                // Update the path in the new template
+                updatePreferredMovePath();
+            } else {
+                // Switch back to correct template
+                $operation.html(correctTemplate);
+            }
+        });
+    }
 
     // Watch for changes to the editable post slug if settings allow
     if (wpMediaOrganiser.settings.postIdentifier === 'slug') {
@@ -22,6 +74,7 @@ jQuery(document).ready(function ($) {
             $('.path-component.path-post-identifier').each(function () {
                 $(this).text(newSlug);
             });
+            updatePathDisplayState();
         });
 
         // Handle escape key (cancel) and restore original slug
@@ -32,6 +85,7 @@ jQuery(document).ready(function ($) {
                 $('.path-component.path-post-identifier').each(function () {
                     $(this).text(originalSlug);
                 });
+                updatePathDisplayState();
             }
         });
     }
@@ -109,14 +163,13 @@ jQuery(document).ready(function ($) {
                 $path.html(pathHtml);
                 console.log('Removed taxonomy and term spans with slashes');
             } else {
-                // Restore template and update values
-                $path.html(originalTemplate);
+                // Update the path with the new taxonomy term
                 const $taxonomySpan = $path.find('.path-component.path-taxonomy');
                 const $termSpan = $path.find('.path-component.path-term');
                 if ($taxonomySpan.length && $termSpan.length) {
                     $taxonomySpan.text('client');
                     $termSpan.text(taxonomyTerm);
-                    console.log('Restored template and updated values');
+                    console.log('Updated taxonomy term to:', taxonomyTerm);
                 }
             }
 
@@ -156,6 +209,7 @@ jQuery(document).ready(function ($) {
             console.log('Checkbox changed - checked:', this.checked);
             console.log('Checkbox value (term ID):', $(this).val());
             updatePreferredMovePath();
+            updatePathDisplayState();
             // Trigger preview update if the function exists
             if (typeof updatePreviewPaths === 'function') {
                 updatePreviewPaths();
