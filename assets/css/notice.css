@@ -139,6 +139,11 @@ a {
     word-break: break-all;
 }
 
+.path-display a {
+    color: currentColor;
+    text-decoration: none;
+}
+
 /* Path types */
 .path-wrong {
     background: #f5f5f5;

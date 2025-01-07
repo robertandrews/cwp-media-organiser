@@ -22,6 +22,7 @@ class CWP_Media_Item_Renderer
             'thumbnail_url' => wp_get_attachment_image_url($this->media_item->ID, 'thumbnail'),
             'current_path' => $this->current_path,
             'preferred_path' => $this->preferred_path,
+            'file_url' => wp_get_attachment_url($this->media_item->ID),
         );
 
         if ($this->needs_move()) {
