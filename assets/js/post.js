@@ -35,58 +35,80 @@ jQuery(document).ready(function ($) {
 
     async function updatePathDisplayState() {
         // Check if we're in a different state from initial
-        const currentSlug = $('#editable-post-name-full').text();
+        let currentSlug = '';
+        // Only get slug value if we're using slug as identifier
+        if (wpMediaOrganiser.settings.postIdentifier === 'slug') {
+            const $slugInput = $('#new-post-slug, #post_name').filter(':visible');
+            if ($slugInput.length) {
+                currentSlug = $slugInput.val();
+            } else {
+                currentSlug = $('#editable-post-name-full').text();
+            }
+        } else {
+            currentSlug = initialSlug; // Use initial slug if not in slug mode
+        }
+
         let currentTaxonomyTermId = '';
         if (wpMediaOrganiser.settings.taxonomyName) {
             const $checked = $(`#${wpMediaOrganiser.settings.taxonomyName}checklist input[type="checkbox"]:checked`);
             currentTaxonomyTermId = $checked.length ? $checked.val() : '';
         }
 
-        const hasChanged = (currentSlug !== initialSlug || currentTaxonomyTermId !== initialTaxonomyTermId);
+        const hasChanged = (
+            (wpMediaOrganiser.settings.postIdentifier === 'slug' && currentSlug !== initialSlug) ||
+            currentTaxonomyTermId !== initialTaxonomyTermId
+        );
         console.log('State check - Changed:', hasChanged, 'Current Slug:', currentSlug, 'Current Term:', currentTaxonomyTermId);
-
-        // Prepare the new template content
-        let newTemplate = hasChanged ? moveTemplate : correctTemplate;
-
-        // If we're showing the move template, update the path immediately
-        if (hasChanged) {
-            const $tempDiv = $('<div>').html(newTemplate);
-            const $pathElement = $tempDiv.find('.path-preferred-move');
-
-            // Update taxonomy and term if present
-            if (currentTaxonomyTermId) {
-                const termSlug = await getTaxonomyValue(wpMediaOrganiser.settings.taxonomyName);
-                if (termSlug) {
-                    // First remove any existing taxonomy/term spans
-                    let pathHtml = $pathElement.html();
-                    pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//, '/');
-                    $pathElement.html(pathHtml);
-
-                    // Then insert the new taxonomy/term after post-type
-                    pathHtml = $pathElement.html().replace(/\/(<span[^>]*class="[^"]*path-post-type[^"]*"[^>]*>[^<]*<\/span>)\//,
-                        '/$1/<span class="path-component path-taxonomy">client</span>/<span class="path-component path-term">' + termSlug + '</span>/');
-                    $pathElement.html(pathHtml);
-                }
-            } else {
-                // Remove taxonomy and term if no term selected
-                let pathHtml = $pathElement.html();
-                pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//, '/');
-                $pathElement.html(pathHtml);
-            }
-
-            // Update post identifier
-            $pathElement.find('.path-post-identifier').text(currentSlug);
-
-            // Get the updated HTML
-            newTemplate = $tempDiv.html();
-        }
 
         // Switch templates based on state
         console.log('Looking for media operations to update...');
-        $('.media-operation').each(function () {
+        $('.media-operation').each(async function () {
             const $operation = $(this);
             console.log('Found media operation:', $operation.html());
-            $operation.html(newTemplate);
+
+            // If we have a path-preferred-move or path-preferred-correct element, use template switching
+            if ($operation.find('.path-preferred-move, .path-preferred-correct').length) {
+                let newTemplate = hasChanged ? moveTemplate : correctTemplate;
+                if (!newTemplate) return; // Skip if template is not available
+
+                // If we're showing the move template, update the path immediately
+                if (hasChanged) {
+                    const $tempDiv = $('<div>').html(newTemplate);
+                    const $pathElement = $tempDiv.find('.path-preferred-move');
+                    if (!$pathElement.length) return; // Skip if path element not found
+
+                    // Update taxonomy and term if present - this should happen regardless of identifier mode
+                    if (currentTaxonomyTermId) {
+                        const termSlug = await getTaxonomyValue(wpMediaOrganiser.settings.taxonomyName);
+                        if (termSlug) {
+                            // First remove any existing taxonomy/term spans
+                            let pathHtml = $pathElement.html() || '';
+                            pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//, '/');
+                            $pathElement.html(pathHtml);
+
+                            // Then insert the new taxonomy/term after post-type
+                            pathHtml = $pathElement.html().replace(/\/(<span[^>]*class="[^"]*path-post-type[^"]*"[^>]*>[^<]*<\/span>)\//,
+                                '/$1/<span class="path-component path-taxonomy">client</span>/<span class="path-component path-term">' + termSlug + '</span>/');
+                            $pathElement.html(pathHtml);
+                        }
+                    } else {
+                        // Remove taxonomy and term if no term selected
+                        let pathHtml = $pathElement.html() || '';
+                        pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//, '/');
+                        $pathElement.html(pathHtml);
+                    }
+
+                    // Update post identifier only if we're in slug mode
+                    if (wpMediaOrganiser.settings.postIdentifier === 'slug') {
+                        $pathElement.find('.path-post-identifier').text(currentSlug);
+                    }
+
+                    // Get the updated HTML
+                    newTemplate = $tempDiv.html();
+                }
+
+                $operation.html(newTemplate);
+            }
         });
     }
 
@@ -95,23 +117,36 @@ jQuery(document).ready(function ($) {
         console.log('Post slug setting enabled, setting up delegated listener');
 
         // Use event delegation for the dynamically added slug input
-        $(document).on('input', '#new-post-slug', function () {
+        $(document).on('input', '#new-post-slug, #post_name', function () {
             const newSlug = $(this).val();
             console.log('Slug changed to:', newSlug);
-            $('.path-component.path-post-identifier').each(function () {
-                $(this).text(newSlug);
+
+            // Update the editable display to match the input
+            $('#editable-post-name-full').text(newSlug);
+
+            // Directly update the path display for immediate feedback
+            $('.media-operation').each(function () {
+                const $operation = $(this);
+                const $tempDiv = $('<div>').html(moveTemplate);
+                const $pathElement = $tempDiv.find('.path-preferred-move');
+
+                // Update post identifier immediately
+                $pathElement.find('.path-post-identifier').text(newSlug);
+
+                // Update the display
+                $operation.html($tempDiv.html());
             });
-            updatePathDisplayState();
         });
 
         // Handle escape key (cancel) and restore original slug
-        $(document).on('keydown', '#new-post-slug', function (e) {
+        $(document).on('keydown', '#new-post-slug, #post_name', function (e) {
             if (e.key === 'Escape') {
-                const originalSlug = $('#editable-post-name-full').text();
+                const originalSlug = initialSlug;
                 console.log('Escape pressed, reverting to original slug:', originalSlug);
-                $('.path-component.path-post-identifier').each(function () {
-                    $(this).text(originalSlug);
-                });
+                $(this).val(originalSlug);
+                $('#editable-post-name-full').text(originalSlug);
+
+                // Update display synchronously
                 updatePathDisplayState();
             }
         });
@@ -190,14 +225,21 @@ jQuery(document).ready(function ($) {
                 $path.html(pathHtml);
                 console.log('Removed taxonomy and term spans with slashes');
             } else {
-                // Update the path with the new taxonomy term
+                // Update the path with the new taxonomy term - this should happen regardless of identifier mode
                 const $taxonomySpan = $path.find('.path-component.path-taxonomy');
                 const $termSpan = $path.find('.path-component.path-term');
-                if ($taxonomySpan.length && $termSpan.length) {
+
+                // If spans don't exist, add them after post-type
+                if (!$taxonomySpan.length || !$termSpan.length) {
+                    let pathHtml = $path.html();
+                    pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-post-type[^"]*"[^>]*>[^<]*<\/span>)\//,
+                        '/$1/<span class="path-component path-taxonomy">client</span>/<span class="path-component path-term">' + taxonomyTerm + '</span>/');
+                    $path.html(pathHtml);
+                } else {
                     $taxonomySpan.text('client');
                     $termSpan.text(taxonomyTerm);
-                    console.log('Updated taxonomy term to:', taxonomyTerm);
                 }
+                console.log('Updated taxonomy term to:', taxonomyTerm);
             }
 
             // Update post identifier if it's a slug
@@ -214,10 +256,6 @@ jQuery(document).ready(function ($) {
             console.log('Final path HTML:', pathHtml);
         });
     }
-
-    // Watch for changes to post slug
-    const $postName = $('#post_name');
-    $postName.on('input', _.debounce(() => updatePreferredMovePath(), 500));
 
     // Watch for changes to taxonomy term if it exists
     if (wpMediaOrganiser.settings.taxonomyName) {
