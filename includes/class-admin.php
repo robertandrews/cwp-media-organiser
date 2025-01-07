@@ -52,6 +52,7 @@ class WP_Media_Organiser_Admin
         // Add AJAX handlers
         add_action('wp_ajax_wp_media_organiser_preview', array($this, 'ajax_get_preview_paths'));
         add_action('wp_ajax_wp_media_organiser_get_term_slug', array($this, 'ajax_get_term_slug'));
+        add_action('wp_ajax_wp_media_organiser_get_term_by_name', array($this, 'ajax_get_term_by_name'));
 
         // Add admin scripts
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
@@ -317,6 +318,40 @@ class WP_Media_Organiser_Admin
         }
 
         wp_send_json_success($term->slug);
+    }
+
+    /**
+     * AJAX handler for getting term data by name
+     */
+    public function ajax_get_term_by_name()
+    {
+        check_ajax_referer('wp_media_organiser_preview', 'nonce');
+
+        $term_name = sanitize_text_field($_POST['term_name']);
+        if (!$term_name) {
+            wp_send_json_error('Invalid term name');
+        }
+
+        $taxonomy = sanitize_text_field($_POST['taxonomy']);
+        if (!$taxonomy) {
+            wp_send_json_error('No taxonomy provided');
+        }
+
+        // Try to get the term by name
+        $term = get_term_by('name', $term_name, $taxonomy);
+        if (!$term || is_wp_error($term)) {
+            // If not found by name, try by slug
+            $term = get_term_by('slug', sanitize_title($term_name), $taxonomy);
+            if (!$term || is_wp_error($term)) {
+                wp_send_json_error('Term not found');
+            }
+        }
+
+        wp_send_json_success(array(
+            'id' => $term->term_id,
+            'name' => $term->name,
+            'slug' => $term->slug,
+        ));
     }
 
     /**

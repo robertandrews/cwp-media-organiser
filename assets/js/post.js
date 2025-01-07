@@ -308,7 +308,7 @@ jQuery(document).ready(function ($) {
             console.log('Checklist HTML:', $checklist.html());
         }
 
-        // Use event delegation for the taxonomy checklist
+        // Use event delegation for the hierarchical taxonomy checklist
         $(document).on('change', `#${taxonomyName}checklist input[type="checkbox"]`, function () {
             console.log('Checkbox changed - checked:', this.checked);
             console.log('Checkbox value (term ID):', $(this).val());
@@ -319,6 +319,112 @@ jQuery(document).ready(function ($) {
                 updatePreviewPaths();
             }
         });
+
+        // Add support for non-hierarchical taxonomies (tags-style interface)
+        // Watch for new terms being added to the tagchecklist
+        const $tagDiv = $(`#tagsdiv-${taxonomyName}`);
+        if ($tagDiv.length) {
+            console.log('Found non-hierarchical taxonomy interface');
+
+            // Create a MutationObserver to watch for changes to the tagchecklist
+            const tagObserver = new MutationObserver(function (mutations) {
+                mutations.forEach(function (mutation) {
+                    if (mutation.type === 'childList') {
+                        // Handle both additions and removals
+                        if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+                            // Get all current terms
+                            const currentTerms = [];
+                            $tagDiv.find('.tagchecklist li').each(function () {
+                                const termText = $(this).clone()    // Clone to avoid button text
+                                    .children()                     // Get child elements
+                                    .remove()                       // Remove them
+                                    .end()                          // Go back to original element
+                                    .text()                         // Get remaining text
+                                    .trim();                        // Clean up whitespace
+                                if (termText) {
+                                    currentTerms.push(termText);
+                                }
+                            });
+
+                            console.log('Current terms:', currentTerms);
+
+                            // If we have terms, get the first one's data (as we only support single term selection)
+                            if (currentTerms.length > 0) {
+                                $.ajax({
+                                    url: wpMediaOrganiser.ajaxurl,
+                                    type: 'POST',
+                                    data: {
+                                        action: 'wp_media_organiser_get_term_by_name',
+                                        nonce: wpMediaOrganiser.nonce,
+                                        taxonomy: taxonomyName,
+                                        term_name: currentTerms[0]
+                                    },
+                                    success: function (response) {
+                                        if (response.success && response.data) {
+                                            console.log('Got term data:', response.data);
+
+                                            // Store the term data for path updates
+                                            const termData = response.data;
+
+                                            // Update all path-preferred-move elements
+                                            $('.path-preferred-move, .path-preferred-correct').each(function () {
+                                                const $path = $(this);
+                                                const $postType = $path.find('.path-component.path-post-type');
+
+                                                if ($postType.length) {
+                                                    // Get the path parts after post-type
+                                                    const pathParts = $path.html().split($postType.prop('outerHTML'));
+                                                    if (pathParts.length === 2) {
+                                                        // Remove any existing taxonomy/term structure
+                                                        const cleanedPath = pathParts[1].replace(/\/[^/]*\/[^/]*\/(2024)/, '/$1');
+
+                                                        // Construct the new path with taxonomy and term
+                                                        const newPath = pathParts[0] +
+                                                            $postType.prop('outerHTML') +
+                                                            '/' +
+                                                            `<span class="path-component path-taxonomy">${taxonomyName}</span>/` +
+                                                            `<span class="path-component path-term">${termData.slug}</span>` +
+                                                            cleanedPath;
+
+                                                        $path.html(newPath);
+                                                        console.log('Updated path structure:', newPath);
+                                                    }
+                                                }
+                                            });
+
+                                            updatePathDisplayState();
+                                            // Trigger preview update if the function exists
+                                            if (typeof updatePreviewPaths === 'function') {
+                                                updatePreviewPaths();
+                                            }
+                                        }
+                                    }
+                                });
+                            } else {
+                                // No terms selected, update path to remove taxonomy/term
+                                console.log('No terms selected, updating path');
+                                updatePreferredMovePath();
+                                updatePathDisplayState();
+                                // Trigger preview update if the function exists
+                                if (typeof updatePreviewPaths === 'function') {
+                                    updatePreviewPaths();
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Start observing the tagchecklist for changes
+            const tagChecklist = $tagDiv.find('.tagchecklist')[0];
+            if (tagChecklist) {
+                tagObserver.observe(tagChecklist, {
+                    childList: true,
+                    subtree: true
+                });
+                console.log('Started observing tagchecklist for changes');
+            }
+        }
     }
 
     // Initial update
