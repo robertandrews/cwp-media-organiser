@@ -37,30 +37,47 @@ jQuery(document).ready(function ($) {
             correctTemplate = $(this).html();
             console.log('Stored correct template:', correctTemplate);
 
-            // Create move template from correct template
-            moveTemplate = correctTemplate
-                .replace('operation-text correct">Already in correct location:', 'operation-text move">Will move to preferred path')
-                .replace('path-preferred-correct', 'path-preferred-move')
+            // Create move template from correct template, but without the anchor tag for preferred path
+            const $correctDiv = $('<div>').html(correctTemplate);
+            const $correctPathDisplay = $correctDiv.find('.path-display');
+            const $correctPathPreferred = $correctPathDisplay.find('.path-preferred-correct');
+
+            // Extract the path content without the anchor
+            const pathContent = $correctPathPreferred.html()
+                .replace('correct">', 'move">')
                 .replace('dashicons-yes-alt correct', 'dashicons-yes-alt move');
 
-            // Add the path-wrong element structure
-            const $tempDiv = $('<div>').html(moveTemplate);
-            const $pathDisplay = $tempDiv.find('.path-display');
-            const $pathPreferred = $pathDisplay.find('.path-preferred-move');
+            // Create the move template structure
+            const $moveDiv = $('<div>').addClass('media-operation');
+            $moveDiv.append('<div class="operation-text move">Will move to preferred path</div>');
 
-            // Get plain text version of the path by removing all HTML tags
-            const plainPath = $pathPreferred.html()
+            const $movePathDisplay = $('<div>').addClass('path-display');
+
+            // Get plain text version of the path
+            const plainPath = pathContent
                 .replace(/<span[^>]*>/g, '')
                 .replace(/<\/span>/g, '')
                 .replace(/<[^>]+>/g, '');
 
-            // Create and insert the path-wrong element before the preferred path
-            const $pathWrong = $('<code>')
-                .addClass('path-wrong')
-                .html('<span class="dashicons dashicons-dismiss fail"></span><del>' + plainPath + '</del>');
+            // Create and add the wrong path (with link)
+            const $pathWrong = $('<a>')
+                .attr('href', $correctPathDisplay.find('a').attr('href'))
+                .attr('target', '_blank')
+                .append(
+                    $('<code>')
+                        .addClass('path-wrong')
+                        .html('<span class="dashicons dashicons-dismiss fail"></span><del>' + plainPath + '</del>')
+                );
+            $movePathDisplay.append($pathWrong);
 
-            $pathDisplay.prepend($pathWrong);
-            moveTemplate = $tempDiv.html();
+            // Create and add the preferred path (without link)
+            const $pathPreferred = $('<code>')
+                .addClass('path-preferred-move')
+                .html(pathContent);
+            $movePathDisplay.append($pathPreferred);
+
+            $moveDiv.append($movePathDisplay);
+            moveTemplate = $moveDiv.html();
             console.log('Created move template:', moveTemplate);
         }
     });
