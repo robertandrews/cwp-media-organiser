@@ -49,8 +49,12 @@ class WP_Media_Organiser_Admin
         // Handle media reorganization on legitimate post saves
         add_action('save_post', array($this, 'handle_save_post'), 10, 3);
 
-        // Add AJAX handlers for preview
+        // Add AJAX handlers
         add_action('wp_ajax_wp_media_organiser_preview', array($this, 'ajax_get_preview_paths'));
+        add_action('wp_ajax_wp_media_organiser_get_term_slug', array($this, 'ajax_get_term_slug'));
+
+        // Add admin scripts
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
     }
 
     private function log_save_post_debug($post_id, $post, $update)
@@ -288,5 +292,84 @@ class WP_Media_Organiser_Admin
 
         $this->logger->log("=== Completed AJAX preview paths handler ===", 'debug');
         wp_send_json_success($preview_data);
+    }
+
+    /**
+     * AJAX handler for getting term slugs
+     */
+    public function ajax_get_term_slug()
+    {
+        check_ajax_referer('wp_media_organiser_preview', 'nonce');
+
+        $term_id = intval($_POST['term_id']);
+        if (!$term_id) {
+            wp_send_json_error('Invalid term ID');
+        }
+
+        $taxonomy = $this->settings->get_setting('taxonomy_name');
+        if (!$taxonomy) {
+            wp_send_json_error('No taxonomy configured');
+        }
+
+        $term = get_term($term_id, $taxonomy);
+        if (!$term || is_wp_error($term)) {
+            wp_send_json_error('Term not found');
+        }
+
+        wp_send_json_success($term->slug);
+    }
+
+    /**
+     * Enqueue admin scripts
+     */
+    public function enqueue_admin_scripts($hook)
+    {
+        // Enqueue on settings page
+        if ($hook === 'settings_page_wp-media-organiser') {
+            wp_enqueue_style('wp-media-organiser-admin', plugin_dir_url(dirname(__FILE__)) . 'assets/css/admin.css', array(), '1.0.0');
+            wp_enqueue_script('wp-media-organiser-admin', plugin_dir_url(dirname(__FILE__)) . 'assets/js/admin.js', array('jquery'), '1.0.0', true);
+
+            // Pass data to admin.js
+            wp_localize_script('wp-media-organiser-admin', 'wpMediaOrganiser', array(
+                'uploadsPath' => '/wp-content/uploads',
+                'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
+                'postTypes' => $this->settings->get_valid_post_types(),
+            ));
+        }
+
+        // Enqueue on post edit page
+        if ($hook === 'post.php' || $hook === 'post-new.php') {
+            // First enqueue the notice CSS
+            wp_enqueue_style('wp-media-organiser-notice', plugin_dir_url(dirname(__FILE__)) . 'assets/css/notice.css', array(), '1.0.0');
+
+            // Then enqueue Underscore.js as a dependency
+            wp_enqueue_script('underscore');
+
+            // Finally enqueue our post.js with both jQuery and Underscore as dependencies
+            wp_enqueue_script(
+                'wp-media-organiser-post',
+                plugin_dir_url(dirname(__FILE__)) . 'assets/js/post.js',
+                array('jquery', 'underscore'),
+                filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/js/post.js'),
+                true
+            );
+
+            // Pass settings and nonce to post.js
+            wp_localize_script('wp-media-organiser-post', 'wpMediaOrganiser', array(
+                'settings' => array(
+                    'taxonomyName' => $this->settings->get_setting('taxonomy_name'),
+                    'postIdentifier' => $this->settings->get_setting('post_identifier'),
+                ),
+                'nonce' => wp_create_nonce('wp_media_organiser_preview'),
+                'ajaxurl' => admin_url('admin-ajax.php'),
+            ));
+
+            // Add debug info
+            if (WP_DEBUG) {
+                $this->logger->log("Enqueued post.js with settings:", 'debug');
+                $this->logger->log("Taxonomy Name: " . $this->settings->get_setting('taxonomy_name'), 'debug');
+                $this->logger->log("Post Identifier: " . $this->settings->get_setting('post_identifier'), 'debug');
+            }
+        }
     }
 }
