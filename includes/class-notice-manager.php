@@ -67,7 +67,8 @@ class CWP_Media_Organiser_Notice_Manager
 
         // Add notice actions
         add_action('admin_notices', array($this, 'display_bulk_action_notice'));
-        add_action('admin_notices', array($this, 'display_post_update_notice'));
+        // Temporarily disabled
+        // add_action('admin_notices', array($this, 'display_post_update_notice'));
         add_action('edit_form_after_title', array($this, 'display_preview_notice'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_notice_scripts'));
     }
