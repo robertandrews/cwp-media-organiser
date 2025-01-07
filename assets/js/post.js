@@ -26,9 +26,28 @@ jQuery(document).ready(function ($) {
 
             // Create move template from correct template
             moveTemplate = correctTemplate
-                .replace('operation-text correct">Already in correct location:', 'operation-text move">Will move to:')
+                .replace('operation-text correct">Already in correct location:', 'operation-text move">Will move to preferred path')
                 .replace('path-preferred-correct', 'path-preferred-move')
                 .replace('dashicons-yes-alt correct', 'dashicons-arrow-right-alt move');
+
+            // Add the path-wrong element structure
+            const $tempDiv = $('<div>').html(moveTemplate);
+            const $pathDisplay = $tempDiv.find('.path-display');
+            const $pathPreferred = $pathDisplay.find('.path-preferred-move');
+
+            // Get plain text version of the path by removing all HTML tags
+            const plainPath = $pathPreferred.html()
+                .replace(/<span[^>]*>/g, '')
+                .replace(/<\/span>/g, '')
+                .replace(/<[^>]+>/g, '');
+
+            // Create and insert the path-wrong element before the preferred path
+            const $pathWrong = $('<code>')
+                .addClass('path-wrong')
+                .html('<span class="dashicons dashicons-dismiss fail"></span><del>' + plainPath + '</del>');
+
+            $pathDisplay.prepend($pathWrong);
+            moveTemplate = $tempDiv.html();
             console.log('Created move template:', moveTemplate);
         }
     });
@@ -77,6 +96,12 @@ jQuery(document).ready(function ($) {
                     const $pathElement = $tempDiv.find('.path-preferred-move');
                     if (!$pathElement.length) return; // Skip if path element not found
 
+                    // Store the current path before making changes (for path-wrong)
+                    const plainPath = $pathElement.html()
+                        .replace(/<span[^>]*>/g, '')
+                        .replace(/<\/span>/g, '')
+                        .replace(/<[^>]+>/g, '');
+
                     // Update taxonomy and term if present - this should happen regardless of identifier mode
                     if (currentTaxonomyTermId) {
                         const termSlug = await getTaxonomyValue(wpMediaOrganiser.settings.taxonomyName);
@@ -101,6 +126,12 @@ jQuery(document).ready(function ($) {
                     // Update post identifier only if we're in slug mode
                     if (wpMediaOrganiser.settings.postIdentifier === 'slug') {
                         $pathElement.find('.path-post-identifier').text(currentSlug);
+                    }
+
+                    // Update the path-wrong element with the plain text current path
+                    const $pathWrong = $tempDiv.find('.path-wrong');
+                    if ($pathWrong.length) {
+                        $pathWrong.html('<span class="dashicons dashicons-dismiss fail"></span><del>' + plainPath + '</del>');
                     }
 
                     // Get the updated HTML
