@@ -15,7 +15,15 @@ jQuery(document).ready(function ($) {
     async function updatePreviewPaths() {
         // Get the current post slug and taxonomy term
         const postSlug = $('#post_name').val();
-        const taxonomyTerm = $('#' + wpMediaOrganiser.settings.taxonomyName).val();
+        let taxonomyTerm = '';
+
+        // Get taxonomy value from checklist if taxonomy is enabled
+        if (wpMediaOrganiser.settings.taxonomyName) {
+            const $checked = $(`#${wpMediaOrganiser.settings.taxonomyName}checklist input[type="checkbox"]:checked`);
+            if ($checked.length) {
+                taxonomyTerm = $checked.val();
+            }
+        }
 
         $.ajax({
             url: wpMediaOrganiser.ajaxurl,
@@ -63,8 +71,6 @@ jQuery(document).ready(function ($) {
     // Watch for changes to post slug
     $('#post_name').on('input', _.debounce(updatePreviewPaths, 500));
 
-    // Watch for changes to taxonomy term if it exists
-    if (wpMediaOrganiser.settings.taxonomyName) {
-        $('#' + wpMediaOrganiser.settings.taxonomyName).on('change', updatePreviewPaths);
-    }
+    // Initial update
+    updatePreviewPaths();
 }); 

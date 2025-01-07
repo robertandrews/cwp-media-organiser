@@ -130,6 +130,10 @@ jQuery(document).ready(function ($) {
             console.log('Checkbox changed - checked:', this.checked);
             console.log('Checkbox value (term ID):', $(this).val());
             updatePreferredMovePath();
+            // Trigger preview update if the function exists
+            if (typeof updatePreviewPaths === 'function') {
+                updatePreviewPaths();
+            }
         });
     }
 
