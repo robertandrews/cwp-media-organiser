@@ -45,21 +45,48 @@ jQuery(document).ready(function ($) {
         const hasChanged = (currentSlug !== initialSlug || currentTaxonomyTermId !== initialTaxonomyTermId);
         console.log('State check - Changed:', hasChanged, 'Current Slug:', currentSlug, 'Current Term:', currentTaxonomyTermId);
 
+        // Prepare the new template content
+        let newTemplate = hasChanged ? moveTemplate : correctTemplate;
+
+        // If we're showing the move template, update the path immediately
+        if (hasChanged) {
+            const $tempDiv = $('<div>').html(newTemplate);
+            const $pathElement = $tempDiv.find('.path-preferred-move');
+
+            // Update taxonomy and term if present
+            if (currentTaxonomyTermId) {
+                const termSlug = await getTaxonomyValue(wpMediaOrganiser.settings.taxonomyName);
+                if (termSlug) {
+                    // First remove any existing taxonomy/term spans
+                    let pathHtml = $pathElement.html();
+                    pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//, '/');
+                    $pathElement.html(pathHtml);
+
+                    // Then insert the new taxonomy/term after post-type
+                    pathHtml = $pathElement.html().replace(/\/(<span[^>]*class="[^"]*path-post-type[^"]*"[^>]*>[^<]*<\/span>)\//,
+                        '/$1/<span class="path-component path-taxonomy">client</span>/<span class="path-component path-term">' + termSlug + '</span>/');
+                    $pathElement.html(pathHtml);
+                }
+            } else {
+                // Remove taxonomy and term if no term selected
+                let pathHtml = $pathElement.html();
+                pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//, '/');
+                $pathElement.html(pathHtml);
+            }
+
+            // Update post identifier
+            $pathElement.find('.path-post-identifier').text(currentSlug);
+
+            // Get the updated HTML
+            newTemplate = $tempDiv.html();
+        }
+
         // Switch templates based on state
         console.log('Looking for media operations to update...');
         $('.media-operation').each(function () {
             const $operation = $(this);
             console.log('Found media operation:', $operation.html());
-
-            if (hasChanged) {
-                // Switch to move template
-                $operation.html(moveTemplate);
-                // Update the path in the new template
-                updatePreferredMovePath();
-            } else {
-                // Switch back to correct template
-                $operation.html(correctTemplate);
-            }
+            $operation.html(newTemplate);
         });
     }
 
