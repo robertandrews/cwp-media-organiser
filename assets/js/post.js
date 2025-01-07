@@ -1,6 +1,7 @@
 jQuery(document).ready(function ($) {
     console.log('WP Media Organiser post.js loaded');
     console.log('Settings:', wpMediaOrganiser);
+    console.log('Post Identifier Setting:', wpMediaOrganiser.settings.postIdentifier);
 
     // Store the original template structure on page load
     let originalTemplate = '';
@@ -9,6 +10,31 @@ jQuery(document).ready(function ($) {
             originalTemplate = $(this).html();
         }
     });
+
+    // Watch for changes to the editable post slug if settings allow
+    if (wpMediaOrganiser.settings.postIdentifier === 'slug') {
+        console.log('Post slug setting enabled, setting up delegated listener');
+
+        // Use event delegation for the dynamically added slug input
+        $(document).on('input', '#new-post-slug', function () {
+            const newSlug = $(this).val();
+            console.log('Slug changed to:', newSlug);
+            $('.path-component.path-post-identifier').each(function () {
+                $(this).text(newSlug);
+            });
+        });
+
+        // Handle escape key (cancel) and restore original slug
+        $(document).on('keydown', '#new-post-slug', function (e) {
+            if (e.key === 'Escape') {
+                const originalSlug = $('#editable-post-name-full').text();
+                console.log('Escape pressed, reverting to original slug:', originalSlug);
+                $('.path-component.path-post-identifier').each(function () {
+                    $(this).text(originalSlug);
+                });
+            }
+        });
+    }
 
     function getTermSlug(termId) {
         return new Promise((resolve) => {
