@@ -6,11 +6,24 @@ jQuery(document).ready(function ($) {
     // Store initial states
     let initialSlug = $('#editable-post-name-full').text();
     let initialTaxonomyTermId = '';
+    let initialTaxonomyTermName = '';
     if (wpMediaOrganiser.settings.taxonomyName) {
         const $checked = $(`#${wpMediaOrganiser.settings.taxonomyName}checklist input[type="checkbox"]:checked`);
         initialTaxonomyTermId = $checked.length ? $checked.val() : '';
+
+        // Also store initial non-hierarchical term if present
+        const $tagDiv = $(`#tagsdiv-${wpMediaOrganiser.settings.taxonomyName}`);
+        if ($tagDiv.length) {
+            const termText = $tagDiv.find('.tagchecklist li').first().clone()
+                .children()
+                .remove()
+                .end()
+                .text()
+                .trim();
+            initialTaxonomyTermName = termText || '';
+        }
     }
-    console.log('Initial states - Slug:', initialSlug, 'Taxonomy Term ID:', initialTaxonomyTermId);
+    console.log('Initial states - Slug:', initialSlug, 'Taxonomy Term ID:', initialTaxonomyTermId, 'Term Name:', initialTaxonomyTermName);
 
     // Store the original templates
     let correctTemplate = '';
@@ -68,16 +81,31 @@ jQuery(document).ready(function ($) {
         }
 
         let currentTaxonomyTermId = '';
+        let currentTaxonomyTermName = '';
         if (wpMediaOrganiser.settings.taxonomyName) {
+            // Check hierarchical taxonomy first
             const $checked = $(`#${wpMediaOrganiser.settings.taxonomyName}checklist input[type="checkbox"]:checked`);
             currentTaxonomyTermId = $checked.length ? $checked.val() : '';
+
+            // Check non-hierarchical taxonomy
+            const $tagDiv = $(`#tagsdiv-${wpMediaOrganiser.settings.taxonomyName}`);
+            if ($tagDiv.length) {
+                const termText = $tagDiv.find('.tagchecklist li').first().clone()
+                    .children()
+                    .remove()
+                    .end()
+                    .text()
+                    .trim();
+                currentTaxonomyTermName = termText || '';
+            }
         }
 
         const hasChanged = (
             (wpMediaOrganiser.settings.postIdentifier === 'slug' && currentSlug !== initialSlug) ||
-            currentTaxonomyTermId !== initialTaxonomyTermId
+            currentTaxonomyTermId !== initialTaxonomyTermId ||
+            (currentTaxonomyTermName !== initialTaxonomyTermName && (currentTaxonomyTermName || initialTaxonomyTermName))
         );
-        console.log('State check - Changed:', hasChanged, 'Current Slug:', currentSlug, 'Current Term:', currentTaxonomyTermId);
+        console.log('State check - Changed:', hasChanged, 'Current Slug:', currentSlug, 'Current Term ID:', currentTaxonomyTermId, 'Current Term Name:', currentTaxonomyTermName);
 
         // Switch templates based on state
         console.log('Looking for media operations to update...');
@@ -348,7 +376,7 @@ jQuery(document).ready(function ($) {
 
                             console.log('Current terms:', currentTerms);
 
-                            // If we have terms, get the first one's data (as we only support single term selection)
+                            // If we have terms, get the first one's data
                             if (currentTerms.length > 0) {
                                 $.ajax({
                                     url: wpMediaOrganiser.ajaxurl,
@@ -375,8 +403,8 @@ jQuery(document).ready(function ($) {
                                                     // Get the path parts after post-type
                                                     const pathParts = $path.html().split($postType.prop('outerHTML'));
                                                     if (pathParts.length === 2) {
-                                                        // Remove any existing taxonomy/term structure
-                                                        const cleanedPath = pathParts[1].replace(/\/[^/]*\/[^/]*\/(2024)/, '/$1');
+                                                        // Remove all existing taxonomy/term structures
+                                                        const cleanedPath = pathParts[1].replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//g, '/');
 
                                                         // Construct the new path with taxonomy and term
                                                         const newPath = pathParts[0] +
@@ -401,9 +429,30 @@ jQuery(document).ready(function ($) {
                                     }
                                 });
                             } else {
-                                // No terms selected, update path to remove taxonomy/term
-                                console.log('No terms selected, updating path');
-                                updatePreferredMovePath();
+                                // No terms selected, remove taxonomy and term from path
+                                console.log('No terms selected, removing taxonomy and term from path');
+                                $('.path-preferred-move, .path-preferred-correct').each(function () {
+                                    const $path = $(this);
+                                    const $postType = $path.find('.path-component.path-post-type');
+
+                                    if ($postType.length) {
+                                        // Get the path parts after post-type
+                                        const pathParts = $path.html().split($postType.prop('outerHTML'));
+                                        if (pathParts.length === 2) {
+                                            // Remove all taxonomy/term structures
+                                            const cleanedPath = pathParts[1].replace(/\/(<span[^>]*class="[^"]*path-taxonomy[^"]*"[^>]*>[^<]*<\/span>)\/(<span[^>]*class="[^"]*path-term[^"]*"[^>]*>[^<]*<\/span>)\//g, '/');
+
+                                            // Reconstruct path without taxonomy/term
+                                            const newPath = pathParts[0] +
+                                                $postType.prop('outerHTML') +
+                                                cleanedPath;
+
+                                            $path.html(newPath);
+                                            console.log('Removed taxonomy/term from path:', newPath);
+                                        }
+                                    }
+                                });
+
                                 updatePathDisplayState();
                                 // Trigger preview update if the function exists
                                 if (typeof updatePreviewPaths === 'function') {
@@ -426,7 +475,4 @@ jQuery(document).ready(function ($) {
             }
         }
     }
-
-    // Initial update
-    updatePreferredMovePath();
 }); 
