@@ -30,7 +30,7 @@
                     </div>
                     <div class="media-content">
                         <div class="media-info">
-                            <a href="{{media_edit_url}}" target="_blank">{{media_title}}</a> (ID: {{media_id}})
+                            {{media_title}} (ID: <a href="{{media_edit_url}}" target="_blank">{{media_id}}</a>)
                         </div>
                         {{#paths_match}}
                         {{> components/media-operation/media-operation-preview-correct}}
@@ -55,7 +55,7 @@
                 </div>
                 <div class="media-content">
                     <div class="media-info">
-                        <a href="{{media_edit_url}}" target="_blank">{{media_title}}</a> (ID: {{media_id}})
+                        {{media_title}} (ID: <a href="{{media_edit_url}}" target="_blank">{{media_id}}</a>)
                     </div>
                     {{#paths_match}}
                     {{> components/media-operation/media-operation-preview-correct}}

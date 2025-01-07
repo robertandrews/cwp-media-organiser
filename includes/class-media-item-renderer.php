@@ -18,7 +18,8 @@ class CWP_Media_Item_Renderer
         $base_data = array(
             'media_id' => $this->media_item->ID,
             'media_title' => $this->media_item->post_title,
-            'media_edit_url' => get_edit_post_link($this->media_item->ID),
+            'media_edit_url' => admin_url('post.php?post=' . $this->media_item->ID . '&action=edit'),
+            'thumbnail_url' => wp_get_attachment_image_url($this->media_item->ID, 'thumbnail'),
             'current_path' => $this->current_path,
             'preferred_path' => $this->preferred_path,
         );

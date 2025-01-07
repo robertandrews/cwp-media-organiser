@@ -4,6 +4,8 @@ if (!defined('WPINC')) {
     die;
 }
 
+require_once plugin_dir_path(__FILE__) . 'class-media-item-renderer.php';
+
 class CWP_Media_Organiser_Notice_Manager
 {
     // Singleton instance
@@ -135,15 +137,17 @@ class CWP_Media_Organiser_Notice_Manager
             $paths_match = ($current_path === $preferred_path);
             $status = $item['status'];
 
-            $notice_data['media_items'][] = array(
-                'media_id' => $media_id,
-                'media_title' => get_the_title($media_id),
-                'media_edit_url' => get_edit_post_link($media_id),
-                'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
+            // Use CWP_Media_Item_Renderer to get the media edit URL
+            $media_item = get_post($media_id);
+            $renderer = new CWP_Media_Item_Renderer($media_item, $current_path, $preferred_path);
+            $base_data = $renderer->get_template_data();
+            $base_data = reset($base_data); // Get first element since it's wrapped in items_*
+            $base_data = reset($base_data); // Get the actual data array
+
+            $notice_data['media_items'][] = array_merge($base_data, array(
                 'status' => $status,
                 'status_class' => str_replace('will_', '', $status),
                 'operation_text' => $this->get_operation_text($status, 'preview'),
-                'current_path' => $current_path,
                 'paths_match' => $paths_match,
                 'is_preview' => true,
                 'post_type' => isset($item['post_type']) ? $item['post_type'] : '',
@@ -153,7 +157,7 @@ class CWP_Media_Organiser_Notice_Manager
                 'month' => isset($item['month']) ? $item['month'] : '',
                 'post_id' => isset($item['post_id']) ? $item['post_id'] : '',
                 'filename' => isset($item['filename']) ? $item['filename'] : basename($preferred_path),
-            );
+            ));
         }
 
         return $notice_data;
@@ -497,18 +501,20 @@ echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
                         $status = 'moved';
                     }
 
-                    $media_item = array(
-                        'media_id' => $media_id,
-                        'media_title' => $media_title,
-                        'media_edit_url' => get_edit_post_link($media_id),
-                        'thumbnail_url' => wp_get_attachment_image_url($media_id, 'thumbnail'),
+                    // Use CWP_Media_Item_Renderer to get the media edit URL
+                    $media_item = get_post($media_id);
+                    $renderer = new CWP_Media_Item_Renderer($media_item, $current_path, $preferred_path);
+                    $base_data = $renderer->get_template_data();
+                    $base_data = reset($base_data); // Get first element since it's wrapped in items_*
+                    $base_data = reset($base_data); // Get the actual data array
+
+                    $media_item = array_merge($base_data, array(
                         'status' => $status,
                         'status_class' => $status,
                         'operation_text' => $this->get_operation_text($status),
-                        'current_path' => $current_path,
                         'paths_match' => ($current_path === $preferred_path),
                         'is_preview' => false,
-                    );
+                    ));
 
                     // Extract path components from preferred path
                     $path_parts = explode('/', trim($preferred_path, '/'));

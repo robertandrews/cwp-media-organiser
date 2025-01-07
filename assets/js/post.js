@@ -155,18 +155,17 @@ jQuery(document).ready(function ($) {
             // Update the editable display to match the input
             $('#editable-post-name-full').text(newSlug);
 
-            // Directly update the path display for immediate feedback
-            $('.media-operation').each(function () {
-                const $operation = $(this);
-                const $tempDiv = $('<div>').html(moveTemplate);
-                const $pathElement = $tempDiv.find('.path-preferred-move');
-
-                // Update post identifier immediately
-                $pathElement.find('.path-post-identifier').text(newSlug);
-
-                // Update the display
-                $operation.html($tempDiv.html());
+            // Update the path display directly without AJAX calls
+            $('.path-preferred-move, .path-preferred-correct').each(function () {
+                const $path = $(this);
+                const $postIdSpan = $path.find('.path-component.path-post-identifier');
+                if ($postIdSpan.length) {
+                    $postIdSpan.text(newSlug || '');
+                }
             });
+
+            // Update the display state
+            updatePathDisplayState();
         });
 
         // Handle escape key (cancel) and restore original slug
@@ -177,7 +176,16 @@ jQuery(document).ready(function ($) {
                 $(this).val(originalSlug);
                 $('#editable-post-name-full').text(originalSlug);
 
-                // Update display synchronously
+                // Update the path display directly
+                $('.path-preferred-move, .path-preferred-correct').each(function () {
+                    const $path = $(this);
+                    const $postIdSpan = $path.find('.path-component.path-post-identifier');
+                    if ($postIdSpan.length) {
+                        $postIdSpan.text(originalSlug || '');
+                    }
+                });
+
+                // Update the display state
                 updatePathDisplayState();
             }
         });
