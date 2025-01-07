@@ -141,7 +141,8 @@ a {
 
 /* Link styling for preview notices and completed operation notices */
 .media-organiser-notice[data-notice-type="preview"] .path-display a,
-.media-organiser-notice:not([data-notice-type="preview"]) .path-display a:not(:has(.path-wrong)) {
+.media-organiser-notice[data-notice-type="post-save"] .path-display a:has(.path-preferred-correct),
+.media-organiser-notice[data-notice-type="post-save"] .path-display a:has(.path-preferred-move) {
     color: currentColor;
     text-decoration: none;
 }

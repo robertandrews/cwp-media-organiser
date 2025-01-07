@@ -9,6 +9,12 @@
         {{#is_preview}}
         </a>
         {{/is_preview}}
+        {{^is_preview}}
+        <a href="{{file_url}}" target="_blank">
+        {{/is_preview}}
         <code class="path-preferred-move" data-post-id="{{post_id}}" data-media-id="{{media_id}}"><span class="dashicons dashicons-yes-alt correct"></span>/wp-content/uploads/{{#post_type}}<span class="path-component path-post-type" data-component="post_type">{{post_type}}</span>/{{/post_type}}{{#taxonomy}}<span class="path-component path-taxonomy" data-component="taxonomy">{{taxonomy}}</span>/{{/taxonomy}}{{#term}}<span class="path-component path-term" data-component="term">{{term}}</span>/{{/term}}{{#year}}{{year}}/{{/year}}{{#month}}{{month}}/{{/month}}{{#post_id}}<span class="path-component path-post-identifier" data-component="post_id">{{post_id}}</span>/{{/post_id}}{{filename}}</code>
+        {{^is_preview}}
+        </a>
+        {{/is_preview}}
     </div>
 </div> 
