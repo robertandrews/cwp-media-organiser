@@ -301,7 +301,7 @@ class CWP_Media_Organiser_Notice_Manager
                             'post_id' => $post_id,
                             'post_title' => html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
                             'media_count' => intval($matches[3]),
-                            'post_edit_url' => get_edit_post_link($post_id),
+                            'post_edit_url' => html_entity_decode(get_edit_post_link($post_id), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
                             'media_items' => array(),
                         );
 
