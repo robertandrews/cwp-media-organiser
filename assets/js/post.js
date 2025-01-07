@@ -28,7 +28,7 @@ jQuery(document).ready(function ($) {
             moveTemplate = correctTemplate
                 .replace('operation-text correct">Already in correct location:', 'operation-text move">Will move to preferred path')
                 .replace('path-preferred-correct', 'path-preferred-move')
-                .replace('dashicons-yes-alt correct', 'dashicons-arrow-right-alt move');
+                .replace('dashicons-yes-alt correct', 'dashicons-yes-alt move');
 
             // Add the path-wrong element structure
             const $tempDiv = $('<div>').html(moveTemplate);
@@ -113,7 +113,7 @@ jQuery(document).ready(function ($) {
 
                             // Then insert the new taxonomy/term after post-type
                             pathHtml = $pathElement.html().replace(/\/(<span[^>]*class="[^"]*path-post-type[^"]*"[^>]*>[^<]*<\/span>)\//,
-                                '/$1/<span class="path-component path-taxonomy">client</span>/<span class="path-component path-term">' + termSlug + '</span>/');
+                                '/$1/<span class="path-component path-taxonomy">' + wpMediaOrganiser.settings.taxonomyName + '</span>/<span class="path-component path-term">' + termSlug + '</span>/');
                             $pathElement.html(pathHtml);
                         }
                     } else {
@@ -264,10 +264,10 @@ jQuery(document).ready(function ($) {
                 if (!$taxonomySpan.length || !$termSpan.length) {
                     let pathHtml = $path.html();
                     pathHtml = pathHtml.replace(/\/(<span[^>]*class="[^"]*path-post-type[^"]*"[^>]*>[^<]*<\/span>)\//,
-                        '/$1/<span class="path-component path-taxonomy">client</span>/<span class="path-component path-term">' + taxonomyTerm + '</span>/');
+                        '/$1/<span class="path-component path-taxonomy">' + wpMediaOrganiser.settings.taxonomyName + '</span>/<span class="path-component path-term">' + taxonomyTerm + '</span>/');
                     $path.html(pathHtml);
                 } else {
-                    $taxonomySpan.text('client');
+                    $taxonomySpan.text(wpMediaOrganiser.settings.taxonomyName);
                     $termSpan.text(taxonomyTerm);
                 }
                 console.log('Updated taxonomy term to:', taxonomyTerm);
