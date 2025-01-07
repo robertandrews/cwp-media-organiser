@@ -84,7 +84,7 @@ a {
     color: var(--color-success);
 }
 
-.operation-text.moved {
+.operation-text.move {
     color: var(--color-warning);
 }
 
