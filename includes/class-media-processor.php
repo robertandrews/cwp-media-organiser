@@ -305,6 +305,9 @@ class WP_Media_Organiser_Processor
             $this->logger->log("  From: $old_file_in_meta", 'info');
             $this->logger->log("  To: $new_attached_file", 'info');
 
+            // Store old directory for cleanup after all moves are complete
+            $old_dir = dirname($old_file);
+
             // Handle size variants
             if (isset($metadata['sizes'])) {
                 $old_dir = dirname($old_file);
@@ -359,11 +362,84 @@ class WP_Media_Organiser_Processor
             $this->logger->log("Clearing attachment image caches", 'info');
             clean_attachment_cache($attachment_id);
 
+            // Now that all files have been moved, check and clean up the old directory
+            $this->logger->log("Checking old directory for cleanup: $old_dir", 'debug');
+            $this->cleanup_empty_directory($old_dir);
+
             return true;
         } else {
             $this->logger->log("Failed to move file from '$old_file' to '$new_file'", 'error');
             return false;
         }
+    }
+
+    /**
+     * Check if a directory is empty and delete it if it is, then recursively check parent directories
+     *
+     * @param string $dir_path Path to the directory to check and potentially delete
+     * @return bool True if directory was deleted, false otherwise
+     */
+    private function cleanup_empty_directory($dir_path)
+    {
+        // Don't delete the uploads base directory
+        $upload_dir = wp_upload_dir();
+        $base_dir = rtrim($upload_dir['basedir'], '/');
+
+        // Normalize the paths for comparison
+        $dir_path = rtrim($dir_path, '/');
+
+        $this->logger->log("Attempting to clean up directory: $dir_path", 'debug');
+
+        if ($dir_path === $base_dir) {
+            $this->logger->log("Skipping cleanup of uploads base directory", 'debug');
+            return false;
+        }
+
+        // Check if directory exists and is readable
+        if (!is_dir($dir_path)) {
+            $this->logger->log("Directory does not exist: $dir_path", 'debug');
+            return false;
+        }
+        if (!is_readable($dir_path)) {
+            $this->logger->log("Directory is not readable: $dir_path", 'debug');
+            return false;
+        }
+
+        // Get all files in directory
+        $files = array_diff(scandir($dir_path), array('.', '..'));
+        $this->logger->log("Directory contents (" . count($files) . " items): " . print_r($files, true), 'debug');
+
+        // If directory is empty
+        if (empty($files)) {
+            $this->logger->log("Found empty directory: $dir_path", 'info');
+
+            // Check if directory is writable
+            if (!is_writable($dir_path)) {
+                $this->logger->log("Directory is not writable: $dir_path", 'error');
+                return false;
+            }
+
+            if (@rmdir($dir_path)) {
+                $this->logger->log("Successfully deleted empty directory: $dir_path", 'info');
+
+                // After successful deletion, check the parent directory
+                $parent_dir = dirname($dir_path);
+                if ($parent_dir !== $base_dir) {
+                    $this->logger->log("Checking parent directory: $parent_dir", 'debug');
+                    $this->cleanup_empty_directory($parent_dir);
+                }
+
+                return true;
+            } else {
+                $error = error_get_last();
+                $this->logger->log("Failed to delete empty directory: $dir_path. Error: " . ($error ? $error['message'] : 'Unknown error'), 'error');
+                return false;
+            }
+        } else {
+            $this->logger->log("Directory is not empty: $dir_path", 'debug');
+        }
+
+        return false;
     }
 
     private function update_post_content_urls($attachment_id, $old_file, $new_file)
