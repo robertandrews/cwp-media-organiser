@@ -220,13 +220,60 @@ class WP_Media_Organiser_Processor
             $this->logger->log("Path parts array: " . print_r($path_parts, true), 'info');
         }
 
-        // Combine parts and add filename
+        // Combine parts
         $path = implode('/', array_filter($path_parts));
-        return trailingslashit($upload_dir['basedir']) . $path . '/' . $file_info['basename'];
+        $target_dir = trailingslashit($upload_dir['basedir']) . $path;
+
+        // Get original filename without numeric suffix if no conflict exists
+        $basename = $file_info['basename'];
+        if (preg_match('/^(.+)-\d+(\.[^.]+)$/', $basename, $matches)) {
+            $original_name = $matches[1] . $matches[2];
+            $potential_path = $target_dir . '/' . $original_name;
+
+            // Check if we can use the original filename (no conflict)
+            if (!file_exists($potential_path) || realpath($potential_path) === realpath(get_attached_file($attachment_id))) {
+                $basename = $original_name;
+            }
+        }
+
+        return $target_dir . '/' . $basename;
     }
 
     private function move_media_file($attachment_id, $old_file, $new_file)
     {
+        global $wpdb;
+
+        $attachment = get_post($attachment_id);
+        $this->logger->log("=== Starting media file move ===", 'info');
+        $this->logger->log("Attachment details:", 'info');
+        $this->logger->log("  ID: $attachment_id", 'info');
+        $this->logger->log("  Title: {$attachment->post_title}", 'info');
+        $this->logger->log("  Original filename: " . basename($old_file), 'info');
+        $this->logger->log("  New filename: " . basename($new_file), 'info');
+
+        // Log current metadata before move
+        $this->logger->log("Current metadata state (before move):", 'info');
+        $old_attached_file = get_post_meta($attachment_id, '_wp_attached_file', true);
+        $this->logger->log("  _wp_attached_file (in wp_postmeta):", 'info');
+        $this->logger->log("    Value: " . $old_attached_file, 'info');
+        $this->logger->log("    Meta ID: " . $wpdb->get_var($wpdb->prepare(
+            "SELECT meta_id FROM $wpdb->postmeta WHERE post_id = %d AND meta_key = '_wp_attached_file'",
+            $attachment_id
+        )), 'info');
+
+        $metadata = wp_get_attachment_metadata($attachment_id);
+        $this->logger->log("  _wp_attachment_metadata (in wp_postmeta):", 'info');
+        $this->logger->log("    Raw value: " . print_r($metadata, true), 'info');
+        if (is_array($metadata)) {
+            $this->logger->log("    Main file path: " . (isset($metadata['file']) ? $metadata['file'] : 'not set'), 'info');
+            if (isset($metadata['sizes'])) {
+                $this->logger->log("    Size variants:", 'info');
+                foreach ($metadata['sizes'] as $size => $info) {
+                    $this->logger->log("      $size: {$info['file']} ({$info['width']}x{$info['height']})", 'info');
+                }
+            }
+        }
+
         // Create the directory if it doesn't exist
         $new_dir = dirname($new_file);
         if (!file_exists($new_dir)) {
@@ -237,38 +284,80 @@ class WP_Media_Organiser_Processor
         if (@rename($old_file, $new_file)) {
             $this->logger->log("Successfully moved file from '$old_file' to '$new_file'", 'info');
 
-            // Log the database update for _wp_attached_file
-            $old_attached_file = get_post_meta($attachment_id, '_wp_attached_file', true);
+            // Update _wp_attached_file
             $new_attached_file = str_replace(wp_upload_dir()['basedir'] . '/', '', $new_file);
             $this->logger->log("Updating _wp_attached_file meta:", 'info');
             $this->logger->log("  From: $old_attached_file", 'info');
             $this->logger->log("  To: $new_attached_file", 'info');
             update_attached_file($attachment_id, $new_file);
 
-            // Update metadata sizes
+            // Update _wp_attachment_metadata
             $metadata = wp_get_attachment_metadata($attachment_id);
-            if (is_array($metadata) && isset($metadata['sizes'])) {
+            if (!is_array($metadata)) {
+                $metadata = array();
+                $this->logger->log("Creating new metadata array as none existed", 'info');
+            }
+
+            // Update the main file path in metadata
+            $old_file_in_meta = isset($metadata['file']) ? $metadata['file'] : 'not set';
+            $metadata['file'] = $new_attached_file;
+            $this->logger->log("Updating main file path in _wp_attachment_metadata:", 'info');
+            $this->logger->log("  From: $old_file_in_meta", 'info');
+            $this->logger->log("  To: $new_attached_file", 'info');
+
+            // Handle size variants
+            if (isset($metadata['sizes'])) {
                 $old_dir = dirname($old_file);
                 $new_dir = dirname($new_file);
-                $this->logger->log("Updating image sizes in wp_postmeta:", 'info');
+                $this->logger->log("Moving and updating size variants:", 'info');
 
                 foreach ($metadata['sizes'] as $size => $sizeinfo) {
                     $old_size_path = $old_dir . '/' . $sizeinfo['file'];
                     $new_size_path = $new_dir . '/' . $sizeinfo['file'];
 
+                    $this->logger->log("  Size variant '$size':", 'info');
+                    $this->logger->log("    Moving from: $old_size_path", 'info');
+                    $this->logger->log("    Moving to: $new_size_path", 'info');
+
                     if (file_exists($old_size_path)) {
-                        $this->logger->log("  Moving size '$size' from '$old_size_path' to '$new_size_path'", 'info');
-                        @rename($old_size_path, $new_size_path);
+                        if (@rename($old_size_path, $new_size_path)) {
+                            $this->logger->log("    ✓ Successfully moved size variant", 'info');
+                        } else {
+                            $this->logger->log("    ✗ Failed to move size variant", 'error');
+                        }
+                    } else {
+                        $this->logger->log("    ! Size variant file not found at source", 'warning');
                     }
                 }
             }
 
-            // Log the metadata update
-            $this->logger->log("Updating _wp_attachment_metadata in wp_postmeta", 'info');
+            // Save the updated metadata
+            $this->logger->log("Saving updated _wp_attachment_metadata:", 'info');
+            $this->logger->log("  New value: " . print_r($metadata, true), 'info');
             wp_update_attachment_metadata($attachment_id, $metadata);
 
             // Update URLs in post content
             $this->update_post_content_urls($attachment_id, $old_file, $new_file);
+
+            // Log final metadata state
+            $this->logger->log("Final metadata state (after move):", 'info');
+            $this->logger->log("  _wp_attached_file: " . get_post_meta($attachment_id, '_wp_attached_file', true), 'info');
+            $final_metadata = wp_get_attachment_metadata($attachment_id);
+            $this->logger->log("  _wp_attachment_metadata:", 'info');
+            $this->logger->log("    Raw value: " . print_r($final_metadata, true), 'info');
+            if (is_array($final_metadata)) {
+                $this->logger->log("    Main file path: " . (isset($final_metadata['file']) ? $final_metadata['file'] : 'not set'), 'info');
+                if (isset($final_metadata['sizes'])) {
+                    $this->logger->log("    Size variants:", 'info');
+                    foreach ($final_metadata['sizes'] as $size => $info) {
+                        $this->logger->log("      $size: {$info['file']} ({$info['width']}x{$info['height']})", 'info');
+                    }
+                }
+            }
+
+            // Clear image caches
+            $this->logger->log("Clearing attachment image caches", 'info');
+            clean_attachment_cache($attachment_id);
 
             return true;
         } else {

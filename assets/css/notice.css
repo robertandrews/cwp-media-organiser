@@ -147,6 +147,14 @@ a {
     text-decoration: none;
 }
 
+/* Add hover state */
+.media-organiser-notice[data-notice-type="preview"] .path-display a:hover,
+.media-organiser-notice[data-notice-type="post-save"] .path-display a:has(.path-preferred-correct):hover,
+.media-organiser-notice[data-notice-type="post-save"] .path-display a:has(.path-preferred-move):hover {
+    color: #2271b1;
+    /* WordPress admin link color */
+}
+
 /* Path types */
 .path-wrong {
     background: #f5f5f5;

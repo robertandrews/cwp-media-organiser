@@ -518,6 +518,7 @@ echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
 
                     // Extract path components from preferred path
                     $path_parts = explode('/', trim($preferred_path, '/'));
+                    $next_is_term = false;
                     foreach ($path_parts as $part) {
                         if (preg_match('/^\d{4}$/', $part)) {
                             $media_item['year'] = $part;
@@ -527,6 +528,10 @@ echo CWP_Media_Organiser_Notice_Renderer::get_instance()->render_notice(
                             $media_item['post_type'] = $part;
                         } elseif ($part === 'client' || $part === 'category') {
                             $media_item['taxonomy'] = $part;
+                            $next_is_term = true;
+                        } elseif ($next_is_term) {
+                            $media_item['term'] = $part;
+                            $next_is_term = false;
                         } elseif (preg_match('/\.(jpg|jpeg|png|gif)$/i', $part)) {
                             $media_item['filename'] = $part;
                         }
