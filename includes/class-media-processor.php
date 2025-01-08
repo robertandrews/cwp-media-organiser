@@ -171,10 +171,13 @@ class WP_Media_Organiser_Processor
         $taxonomy_name = $this->settings->get_setting('taxonomy_name');
         if ($taxonomy_name) {
             $terms = get_the_terms($post_id, $taxonomy_name);
-            if ($terms && !is_wp_error($terms)) {
+            if ($terms && !is_wp_error($terms) && !empty($terms)) {
                 $term = reset($terms);
-                $path_parts[] = $taxonomy_name;
-                $path_parts[] = $term->slug;
+                if (!empty($term->slug)) {
+                    // Only add taxonomy components if we have a valid term
+                    $path_parts[] = $taxonomy_name;
+                    $path_parts[] = $term->slug;
+                }
             }
         }
 
@@ -236,7 +239,19 @@ class WP_Media_Organiser_Processor
             }
         }
 
-        return $target_dir . '/' . $basename;
+        $new_file = $target_dir . '/' . $basename;
+
+        // Add debug logging for path comparison
+        if ($context === 'move' || $context === 'preview') {
+            $current_file = get_attached_file($attachment_id);
+            $this->logger->log("Path comparison:", 'debug');
+            $this->logger->log("Current file: " . $current_file, 'debug');
+            $this->logger->log("New file: " . $new_file, 'debug');
+            $this->logger->log("Upload base dir: " . $upload_dir['basedir'], 'debug');
+            $this->logger->log("Path parts: " . implode('/', $path_parts), 'debug');
+        }
+
+        return $new_file;
     }
 
     private function move_media_file($attachment_id, $old_file, $new_file)
