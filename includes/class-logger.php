@@ -28,14 +28,18 @@ class WP_Media_Organiser_Logger
         // Set minimum log level to DEBUG
         $this->min_level = $this->levels['DEBUG'];
 
-        // Ensure the log file is writable
+        // Ensure the log file exists with secure permissions
         if (!file_exists($this->log_file)) {
             touch($this->log_file);
+            chmod($this->log_file, 0640); // Owner can read/write, group can read, others no access
+        } else if (is_writable($this->log_file)) {
+            // If file exists and is writable, ensure it has secure permissions
+            chmod($this->log_file, 0640);
         }
 
+        // If file is not writable after setting permissions, try to make it writable by owner only
         if (!is_writable($this->log_file)) {
-            // Try to make it writable
-            chmod($this->log_file, 0666);
+            chmod($this->log_file, 0600); // Last resort: only owner can read/write
         }
     }
 
