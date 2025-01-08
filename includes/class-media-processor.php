@@ -489,8 +489,22 @@ class WP_Media_Organiser_Processor
         $attachment = get_post($attachment_id);
         $upload_dir = wp_upload_dir();
 
-        // Get the site URL versions of the paths
+        // Get site URL components
         $site_url = get_site_url();
+        $site_domain = parse_url($site_url, PHP_URL_HOST);
+        $site_port = parse_url($site_url, PHP_URL_PORT);
+
+        // Create domain variations
+        $domain_variations = array($site_domain);
+        if (strpos($site_domain, 'www.') === 0) {
+            // If domain starts with www., add non-www version
+            $domain_variations[] = substr($site_domain, 4);
+        } else {
+            // If domain doesn't start with www., add www version
+            $domain_variations[] = 'www.' . $site_domain;
+        }
+
+        // Get the base paths (without domain)
         $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
         $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
 
@@ -499,27 +513,54 @@ class WP_Media_Organiser_Processor
             return;
         }
 
-        // Handle development URLs with port numbers (e.g., https://context:8890)
-        $site_domain = parse_url($site_url, PHP_URL_HOST);
-        $site_port = parse_url($site_url, PHP_URL_PORT);
-        $site_domain_with_port = $site_port ? "$site_domain:$site_port" : $site_domain;
+        // Get just the paths
+        $old_path = parse_url($old_url, PHP_URL_PATH);
+        $new_path = parse_url($new_url, PHP_URL_PATH);
 
-        // Create variations of the URLs
-        $old_url_variations = array(
-            $old_url, // Full URL
-            str_replace($site_url, "//$site_domain_with_port", $old_url), // URL with port, no scheme
-            wp_make_link_relative($old_url), // Relative URL
-            str_replace($site_url, '', $old_url), // Path only
-        );
-        $new_url_variations = array(
-            $new_url,
-            str_replace($site_url, "//$site_domain_with_port", $new_url),
-            wp_make_link_relative($new_url),
-            str_replace($site_url, '', $new_url),
-        );
+        // Create all URL variations
+        $old_url_variations = array();
+        $new_url_variations = array();
 
-        // Log all URL variations we're searching for
-        $this->logger->log("Searching for URL variations:", 'info');
+        // Add absolute URL variations for each domain
+        foreach ($domain_variations as $domain) {
+            // With port (if exists)
+            if ($site_port) {
+                // HTTPS with port
+                $old_url_variations[] = "https://{$domain}:{$site_port}{$old_path}";
+                $new_url_variations[] = "https://{$domain}:{$site_port}{$new_path}";
+
+                // HTTP with port
+                $old_url_variations[] = "http://{$domain}:{$site_port}{$old_path}";
+                $new_url_variations[] = "http://{$domain}:{$site_port}{$new_path}";
+
+                // Protocol-relative with port
+                $old_url_variations[] = "//{$domain}:{$site_port}{$old_path}";
+                $new_url_variations[] = "//{$domain}:{$site_port}{$new_path}";
+            }
+
+            // Without port
+            // HTTPS without port
+            $old_url_variations[] = "https://{$domain}{$old_path}";
+            $new_url_variations[] = "https://{$domain}{$new_path}";
+
+            // HTTP without port
+            $old_url_variations[] = "http://{$domain}{$old_path}";
+            $new_url_variations[] = "http://{$domain}{$new_path}";
+
+            // Protocol-relative without port
+            $old_url_variations[] = "//{$domain}{$old_path}";
+            $new_url_variations[] = "//{$domain}{$new_path}";
+        }
+
+        // Add relative URL variations
+        $old_url_variations[] = $old_path; // root-relative
+        $new_url_variations[] = $new_path;
+
+        $old_url_variations[] = ltrim($old_path, '/'); // path-only
+        $new_url_variations[] = ltrim($new_path, '/');
+
+        // Log all variations for debugging
+        $this->logger->log("Generated URL variations for '{$attachment->post_title}':", 'info');
         foreach ($old_url_variations as $index => $variation) {
             $this->logger->log("  Old variation $index: $variation", 'info');
             $this->logger->log("  New variation $index: {$new_url_variations[$index]}", 'info');
