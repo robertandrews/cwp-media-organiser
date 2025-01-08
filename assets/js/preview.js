@@ -13,6 +13,12 @@ jQuery(document).ready(function ($) {
 
     // Function to update preview paths
     async function updatePreviewPaths() {
+        // Check if we have a valid post ID before proceeding
+        if (!wpMediaOrganiser || !wpMediaOrganiser.postId) {
+            console.log('Skipping preview update - no valid post ID available');
+            return;
+        }
+
         // Get the current post slug and taxonomy term
         const postSlug = $('#post_name').val();
         let taxonomyTerm = '';
