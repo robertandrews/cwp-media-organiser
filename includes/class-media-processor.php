@@ -294,6 +294,16 @@ class WP_Media_Organiser_Processor
         if (@rename($old_file, $new_file)) {
             $this->logger->log("Successfully moved file from '$old_file' to '$new_file'", 'info');
 
+            // Ensure original file is deleted if rename resulted in a copy
+            if (file_exists($old_file)) {
+                $this->logger->log("Original file still exists after move, attempting to delete", 'info');
+                if (@unlink($old_file)) {
+                    $this->logger->log("Successfully deleted original file at '$old_file'", 'info');
+                } else {
+                    $this->logger->log("Failed to delete original file at '$old_file'", 'warning');
+                }
+            }
+
             // Update _wp_attached_file
             $new_attached_file = str_replace(wp_upload_dir()['basedir'] . '/', '', $new_file);
             $this->logger->log("Updating _wp_attached_file meta:", 'info');
