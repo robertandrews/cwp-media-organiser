@@ -12,6 +12,7 @@ class WP_Media_Organiser_Processor
     private $logger;
     private $settings;
     private $is_processing = false;
+    private $should_handle_wp_suffixes = false; // Control whether to handle WordPress numeric suffixes
 
     public function __construct($settings)
     {
@@ -227,16 +228,10 @@ class WP_Media_Organiser_Processor
         $path = implode('/', array_filter($path_parts));
         $target_dir = trailingslashit($upload_dir['basedir']) . $path;
 
-        // Get original filename without numeric suffix if no conflict exists
+        // Get original filename without numeric suffix if enabled
         $basename = $file_info['basename'];
-        if (preg_match('/^(.+)-\d+(\.[^.]+)$/', $basename, $matches)) {
-            $original_name = $matches[1] . $matches[2];
-            $potential_path = $target_dir . '/' . $original_name;
-
-            // Check if we can use the original filename (no conflict)
-            if (!file_exists($potential_path) || realpath($potential_path) === realpath(get_attached_file($attachment_id))) {
-                $basename = $original_name;
-            }
+        if ($this->should_handle_wp_suffixes) {
+            $basename = $this->handle_filename_suffix($basename, $target_dir, $attachment_id);
         }
 
         $new_file = $target_dir . '/' . $basename;
@@ -807,5 +802,27 @@ class WP_Media_Organiser_Processor
         }
 
         return $path;
+    }
+
+    /**
+     * Handle WordPress numeric suffix in filenames, potentially removing them if no conflict exists
+     *
+     * @param string $basename The original filename with potential numeric suffix
+     * @param string $target_dir The directory where the file will be placed
+     * @param int $attachment_id The ID of the attachment being processed
+     * @return string The filename to use, either with or without numeric suffix
+     */
+    private function handle_filename_suffix($basename, $target_dir, $attachment_id)
+    {
+        if (preg_match('/^(.+)-\d+(\.[^.]+)$/', $basename, $matches)) {
+            $original_name = $matches[1] . $matches[2];
+            $potential_path = $target_dir . '/' . $original_name;
+
+            // Check if we can use the original filename (no conflict)
+            if (!file_exists($potential_path) || realpath($potential_path) === realpath(get_attached_file($attachment_id))) {
+                return $original_name;
+            }
+        }
+        return $basename;
     }
 }
