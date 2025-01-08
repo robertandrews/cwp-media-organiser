@@ -747,9 +747,9 @@ class WP_Media_Organiser_Processor
             // Add taxonomy and term if enabled
             $taxonomy_name = $this->settings->get_setting('taxonomy_name');
             if (!empty($taxonomy_name)) {
-                $path_components['taxonomy'] = $taxonomy_name;
                 $terms = wp_get_post_terms($post_id, $taxonomy_name);
                 if (!empty($terms) && !is_wp_error($terms)) {
+                    $path_components['taxonomy'] = $taxonomy_name;
                     $path_components['term'] = $terms[0]->slug;
                 }
             }
