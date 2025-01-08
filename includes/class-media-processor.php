@@ -314,6 +314,26 @@ class WP_Media_Organiser_Processor
                 $new_dir = dirname($new_file);
                 $this->logger->log("Moving and updating size variants:", 'info');
 
+                // Check for and move original (pre-scaled) image if it exists
+                if (isset($metadata['original_image'])) {
+                    $old_original_path = $old_dir . '/' . $metadata['original_image'];
+                    $new_original_path = $new_dir . '/' . $metadata['original_image'];
+
+                    $this->logger->log("Original (pre-scaled) image found:", 'info');
+                    $this->logger->log("  Moving from: $old_original_path", 'info');
+                    $this->logger->log("  Moving to: $new_original_path", 'info');
+
+                    if (file_exists($old_original_path)) {
+                        if (@rename($old_original_path, $new_original_path)) {
+                            $this->logger->log("  ✓ Successfully moved original image", 'info');
+                        } else {
+                            $this->logger->log("  ✗ Failed to move original image", 'error');
+                        }
+                    } else {
+                        $this->logger->log("  ! Original image file not found at source", 'warning');
+                    }
+                }
+
                 foreach ($metadata['sizes'] as $size => $sizeinfo) {
                     $old_size_path = $old_dir . '/' . $sizeinfo['file'];
                     $new_size_path = $new_dir . '/' . $sizeinfo['file'];
