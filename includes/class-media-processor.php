@@ -488,96 +488,189 @@ class WP_Media_Organiser_Processor
 
         $attachment = get_post($attachment_id);
         $upload_dir = wp_upload_dir();
-        $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $this->normalize_path($old_file));
-        $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $this->normalize_path($new_file));
+
+        // Get the site URL versions of the paths
+        $site_url = get_site_url();
+        $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
+        $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
 
         if ($old_url === $new_url) {
             $this->logger->log("No URL update needed for '{$attachment->post_title}' - URLs are identical", 'debug');
             return;
         }
 
-        $this->logger->log("Updating media library database record for: '{$attachment->post_title}' (ID: $attachment_id)", 'info');
-        $this->logger->log("  From: $old_url", 'info');
-        $this->logger->log("  To: $new_url", 'info');
+        // Handle development URLs with port numbers (e.g., https://context:8890)
+        $site_domain = parse_url($site_url, PHP_URL_HOST);
+        $site_port = parse_url($site_url, PHP_URL_PORT);
+        $site_domain_with_port = $site_port ? "$site_domain:$site_port" : $site_domain;
 
-        // Also handle URLs without scheme (//example.com/...)
-        $old_url_no_scheme = preg_replace('/^https?:/', '', $old_url);
-        $new_url_no_scheme = preg_replace('/^https?:/', '', $new_url);
+        // Create variations of the URLs
+        $old_url_variations = array(
+            $old_url, // Full URL
+            str_replace($site_url, "//$site_domain_with_port", $old_url), // URL with port, no scheme
+            wp_make_link_relative($old_url), // Relative URL
+            str_replace($site_url, '', $old_url), // Path only
+        );
+        $new_url_variations = array(
+            $new_url,
+            str_replace($site_url, "//$site_domain_with_port", $new_url),
+            wp_make_link_relative($new_url),
+            str_replace($site_url, '', $new_url),
+        );
 
-        // Also handle relative URLs (/wp-content/...)
-        $old_url_relative = wp_make_link_relative($old_url);
-        $new_url_relative = wp_make_link_relative($new_url);
+        // Log all URL variations we're searching for
+        $this->logger->log("Searching for URL variations:", 'info');
+        foreach ($old_url_variations as $index => $variation) {
+            $this->logger->log("  Old variation $index: $variation", 'info');
+            $this->logger->log("  New variation $index: {$new_url_variations[$index]}", 'info');
+        }
 
         // Get all posts that might contain any version of the old URL
         $valid_types = array_keys($this->settings->get_valid_post_types());
         $valid_types_list = "'" . implode("','", array_map('esc_sql', $valid_types)) . "'";
 
-        $posts = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT ID, post_content, post_title, post_type FROM {$wpdb->posts}
-                WHERE post_type IN ($valid_types_list)
-                AND (
-                    post_content LIKE %s
-                    OR post_content LIKE %s
-                    OR post_content LIKE %s
-                )",
-                '%' . $wpdb->esc_like($old_url) . '%',
-                '%' . $wpdb->esc_like($old_url_no_scheme) . '%',
-                '%' . $wpdb->esc_like($old_url_relative) . '%'
-            )
+        // Build the query conditions for all URL variations
+        $url_conditions = array();
+        $url_params = array();
+        foreach ($old_url_variations as $variation) {
+            if (!empty($variation)) {
+                $url_conditions[] = "post_content LIKE %s";
+                $url_params[] = '%' . $wpdb->esc_like($variation) . '%';
+            }
+        }
+
+        // Add filename-based conditions
+        $filename_base = pathinfo($old_file, PATHINFO_FILENAME);
+        $filename_with_ext = pathinfo($old_file, PATHINFO_BASENAME);
+        $file_extension = pathinfo($old_file, PATHINFO_EXTENSION);
+
+        if (!empty($filename_with_ext)) {
+            $url_conditions[] = "post_content LIKE %s"; // filename with extension
+            $url_params[] = '%' . $wpdb->esc_like($filename_with_ext) . '%';
+        }
+        if (!empty($filename_base)) {
+            $url_conditions[] = "post_content LIKE %s"; // base filename
+            $url_params[] = '%' . $wpdb->esc_like($filename_base) . '%';
+            $url_conditions[] = "post_content LIKE %s"; // size variants
+            $url_params[] = '%' . $wpdb->esc_like($filename_base) . '-[0-9]*x[0-9]*.' . $file_extension . '%';
+        }
+
+        if (empty($url_conditions)) {
+            $this->logger->log("No valid URL conditions to search for", 'warning');
+            return;
+        }
+
+        // Combine all conditions
+        $where_clause = "post_type IN ($valid_types_list) AND (" . implode(" OR ", $url_conditions) . ")";
+
+        // Prepare the full query
+        $query = $wpdb->prepare(
+            "SELECT ID, post_content, post_title, post_type
+            FROM {$wpdb->posts}
+            WHERE " . $where_clause,
+            $url_params
         );
+
+        $this->logger->log("Executing query: " . $query, 'info');
+        $posts = $wpdb->get_results($query);
 
         if (empty($posts)) {
             $this->logger->log("No posts found containing URLs for '{$attachment->post_title}'", 'info');
+            // Dump a sample of the post content to debug
+            $sample_post = $wpdb->get_row("SELECT ID, post_content FROM {$wpdb->posts} WHERE ID = 192314");
+            if ($sample_post) {
+                $this->logger->log("Sample post content for debugging:", 'info');
+                $this->logger->log($sample_post->post_content, 'info');
+            }
         } else {
             $this->logger->log("Found " . count($posts) . " posts containing URLs for '{$attachment->post_title}'", 'info');
-        }
+            foreach ($posts as $post) {
+                $updated_content = $post->post_content;
+                $this->logger->log("Processing content updates for post ID {$post->ID}:", 'info');
 
-        foreach ($posts as $post) {
-            $updated_content = str_replace(
-                array($old_url, $old_url_no_scheme, $old_url_relative),
-                array($new_url, $new_url_no_scheme, $new_url_relative),
-                $post->post_content
-            );
+                // Replace all URL variations
+                foreach ($old_url_variations as $index => $old_variation) {
+                    if (!empty($old_variation)) {
+                        $new_variation = $new_url_variations[$index];
+                        $updated_content = str_replace($old_variation, $new_variation, $updated_content);
+                    }
+                }
 
-            if ($updated_content !== $post->post_content) {
-                $this->logger->log("Updating image URL in post content for: '{$post->post_title}' (ID: {$post->ID})", 'info');
-                $this->logger->log("  From: $old_url", 'info');
-                $this->logger->log("  To: $new_url", 'info');
+                // Handle size variants
+                $metadata = wp_get_attachment_metadata($attachment_id);
+                if (!empty($metadata['sizes'])) {
+                    foreach ($metadata['sizes'] as $size => $info) {
+                        foreach ($old_url_variations as $index => $old_variation) {
+                            if (!empty($old_variation)) {
+                                $new_variation = $new_url_variations[$index];
 
-                wp_update_post(array(
-                    'ID' => $post->ID,
-                    'post_content' => $updated_content,
-                ));
+                                // Create size variant URLs
+                                $old_size_url = preg_replace('/\.[^.]+$/', "-{$info['width']}x{$info['height']}.$file_extension", $old_variation);
+                                $new_size_url = preg_replace('/\.[^.]+$/', "-{$info['width']}x{$info['height']}.$file_extension", $new_variation);
+
+                                if (!empty($old_size_url) && !empty($new_size_url)) {
+                                    $this->logger->log("Checking size variant:", 'info');
+                                    $this->logger->log("  From: $old_size_url", 'info');
+                                    $this->logger->log("  To: $new_size_url", 'info');
+
+                                    // Direct replacement
+                                    $updated_content = str_replace($old_size_url, $new_size_url, $updated_content);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($updated_content !== $post->post_content) {
+                    $this->logger->log("Content was updated. Saving changes to post '{$post->post_title}' (ID: {$post->ID})", 'info');
+                    $this->logger->log("Original content contained: " . $post->post_content, 'info');
+                    $this->logger->log("Updated content contains: " . $updated_content, 'info');
+                    wp_update_post(array(
+                        'ID' => $post->ID,
+                        'post_content' => $updated_content,
+                    ));
+                } else {
+                    $this->logger->log("No changes were made to post content", 'info');
+                }
             }
         }
 
         // Also update any serialized metadata that might contain the URL
-        $meta_query = $wpdb->prepare(
-            "SELECT post_id, meta_key, meta_value
-            FROM {$wpdb->postmeta}
-            WHERE meta_value LIKE %s
-            OR meta_value LIKE %s
-            OR meta_value LIKE %s",
-            '%' . $wpdb->esc_like($old_url) . '%',
-            '%' . $wpdb->esc_like($old_url_no_scheme) . '%',
-            '%' . $wpdb->esc_like($old_url_relative) . '%'
-        );
-
-        $meta_rows = $wpdb->get_results($meta_query);
-        if (!empty($meta_rows)) {
-            $this->logger->log("Found " . count($meta_rows) . " meta entries containing URLs for '{$attachment->post_title}'", 'info');
+        $meta_conditions = array();
+        $meta_params = array();
+        foreach ($old_url_variations as $variation) {
+            if (!empty($variation)) {
+                $meta_conditions[] = "meta_value LIKE %s";
+                $meta_params[] = '%' . $wpdb->esc_like($variation) . '%';
+            }
         }
 
-        foreach ($meta_rows as $meta) {
-            $post = get_post($meta->post_id);
-            $updated_value = $this->update_serialized_url($meta->meta_value, $old_url, $new_url);
-            $updated_value = $this->update_serialized_url($updated_value, $old_url_no_scheme, $new_url_no_scheme);
-            $updated_value = $this->update_serialized_url($updated_value, $old_url_relative, $new_url_relative);
+        if (!empty($meta_conditions)) {
+            $meta_query = $wpdb->prepare(
+                "SELECT post_id, meta_key, meta_value
+                FROM {$wpdb->postmeta}
+                WHERE " . implode(" OR ", $meta_conditions),
+                $meta_params
+            );
 
-            if ($updated_value !== $meta->meta_value) {
-                $this->logger->log("Updating URL in meta field '{$meta->meta_key}' for post: '{$post->post_title}' (ID: {$meta->post_id})", 'info');
-                update_post_meta($meta->post_id, $meta->meta_key, $updated_value);
+            $meta_rows = $wpdb->get_results($meta_query);
+            if (!empty($meta_rows)) {
+                $this->logger->log("Found " . count($meta_rows) . " meta entries containing URLs for '{$attachment->post_title}'", 'info');
+
+                foreach ($meta_rows as $meta) {
+                    $updated_value = $meta->meta_value;
+
+                    foreach ($old_url_variations as $index => $old_variation) {
+                        if (!empty($old_variation)) {
+                            $new_variation = $new_url_variations[$index];
+                            $updated_value = $this->update_serialized_url($updated_value, $old_variation, $new_variation);
+                        }
+                    }
+
+                    if ($updated_value !== $meta->meta_value) {
+                        update_post_meta($meta->post_id, $meta->meta_key, $updated_value);
+                    }
+                }
             }
         }
     }
