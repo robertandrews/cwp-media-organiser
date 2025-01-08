@@ -5,14 +5,14 @@
         {{#is_preview}}
         <a href="{{file_url}}" target="_blank">
         {{/is_preview}}
-            <code class="path-wrong"><span class="dashicons dashicons-dismiss fail"></span><del>{{current_path}}</del></code>
+            <code class="path-wrong" data-media-id="{{id}}"><span class="dashicons dashicons-dismiss fail"></span><del>{{current_path}}</del></code>
         {{#is_preview}}
         </a>
         {{/is_preview}}
         {{^is_preview}}
         <a href="{{file_url}}" target="_blank">
         {{/is_preview}}
-        <code class="path-preferred-move" data-post-id="{{post_id}}" data-media-id="{{media_id}}"><span class="dashicons dashicons-yes-alt correct"></span>/wp-content/uploads/{{#post_type}}<span class="path-component path-post-type" data-component="post_type">{{post_type}}</span>/{{/post_type}}{{#term}}<span class="path-component path-taxonomy" data-component="taxonomy">{{taxonomy}}</span>/<span class="path-component path-term" data-component="term">{{term}}</span>/{{/term}}{{#year}}{{year}}/{{/year}}{{#month}}{{month}}/{{/month}}{{#post_id}}<span class="path-component path-post-identifier" data-component="post_id">{{post_id}}</span>/{{/post_id}}{{filename}}</code>
+        <code class="path-preferred-move" data-media-id="{{id}}"><span class="dashicons dashicons-yes-alt correct"></span>/wp-content/uploads/{{#post_type}}<span class="path-component path-post-type" data-media-id="{{id}}" data-component="post_type">{{post_type}}</span>/{{/post_type}}{{#term}}<span class="path-component path-taxonomy" data-media-id="{{id}}" data-component="taxonomy">{{taxonomy}}</span>/<span class="path-component path-term" data-media-id="{{id}}" data-component="term">{{term}}</span>/{{/term}}{{#year}}{{year}}/{{/year}}{{#month}}{{month}}/{{/month}}{{#post_id}}<span class="path-component path-post-identifier" data-media-id="{{id}}" data-component="post_id">{{post_id}}</span>/{{/post_id}}{{filename}}</code>
         {{^is_preview}}
         </a>
         {{/is_preview}}
