@@ -195,9 +195,8 @@ class WP_Media_Organiser_Processor
 
         // Add year/month structure only if WordPress setting is enabled
         if (get_option('uploads_use_yearmonth_folders')) {
-            // Get the attachment's date, not the post's date
-            $attachment = get_post($attachment_id);
-            $time = strtotime($attachment->post_date);
+            // Use the post's date instead of the attachment's date
+            $time = strtotime($post->post_date);
             $path_parts[] = date('Y', $time);
             $path_parts[] = date('m', $time);
         }
@@ -808,9 +807,9 @@ class WP_Media_Organiser_Processor
             }
 
             // Add year/month
-            $attachment_date = get_post_time('Y-m', false, $attachment_id);
-            if ($attachment_date) {
-                list($year, $month) = explode('-', $attachment_date);
+            $post_date = get_post_time('Y-m', false, $post_id);
+            if ($post_date) {
+                list($year, $month) = explode('-', $post_date);
                 $path_components['year'] = $year;
                 $path_components['month'] = $month;
             }
