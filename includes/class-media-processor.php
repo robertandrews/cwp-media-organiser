@@ -13,11 +13,22 @@ class WP_Media_Organiser_Processor
     private $settings;
     private $is_processing = false;
     private $should_handle_wp_suffixes = false; // Control whether to handle WordPress numeric suffixes
+    private $is_updating_content = false; // Flag to prevent recursive save_post triggers
 
     public function __construct($settings)
     {
         $this->logger = WP_Media_Organiser_Logger::get_instance();
         $this->settings = $settings;
+    }
+
+    /**
+     * Check if we're currently updating post content URLs
+     *
+     * @return bool True if we're updating content URLs, false otherwise
+     */
+    public function is_updating_content()
+    {
+        return $this->is_updating_content;
     }
 
     public function reorganize_media($post_id, $post, $update)
@@ -261,6 +272,28 @@ class WP_Media_Organiser_Processor
         $this->logger->log("  Original filename: " . basename($old_file), 'info');
         $this->logger->log("  New filename: " . basename($new_file), 'info');
 
+        // Check source and destination paths
+        if (!file_exists($old_file)) {
+            $this->logger->log("Source file does not exist at '$old_file', checking if already moved", 'info');
+            if (file_exists($new_file)) {
+                $this->logger->log("File already exists at destination '$new_file', assuming already moved", 'info');
+                return true;
+            }
+            $this->logger->log("File not found at source or destination", 'error');
+            return false;
+        }
+
+        // Check if the destination file already exists
+        if (file_exists($new_file)) {
+            if (filesize($old_file) === filesize($new_file) && md5_file($old_file) === md5_file($new_file)) {
+                $this->logger->log("Identical file already exists at destination '$new_file', cleaning up source", 'info');
+                @unlink($old_file);
+                return true;
+            }
+            $this->logger->log("Different file exists at destination '$new_file', cannot proceed", 'error');
+            return false;
+        }
+
         // Log current metadata before move
         $this->logger->log("Current metadata state (before move):", 'info');
         $old_attached_file = get_post_meta($attachment_id, '_wp_attached_file', true);
@@ -487,192 +520,68 @@ class WP_Media_Organiser_Processor
         global $wpdb;
 
         $attachment = get_post($attachment_id);
-        $upload_dir = wp_upload_dir();
+        $post = get_post($attachment->post_parent);
 
-        // Get site URL components
-        $site_url = get_site_url();
-        $site_domain = parse_url($site_url, PHP_URL_HOST);
-        $site_port = parse_url($site_url, PHP_URL_PORT);
-
-        // Create domain variations
-        $domain_variations = array($site_domain);
-        if (strpos($site_domain, 'www.') === 0) {
-            // If domain starts with www., add non-www version
-            $domain_variations[] = substr($site_domain, 4);
-        } else {
-            // If domain doesn't start with www., add www version
-            $domain_variations[] = 'www.' . $site_domain;
+        if (!$post) {
+            $this->logger->log("No parent post found for attachment ID: $attachment_id", 'info');
+            return;
         }
 
-        // Get the base paths (without domain)
+        // Get the old and new URLs
+        $upload_dir = wp_upload_dir();
         $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
         $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
 
+        // Skip if URLs are the same
         if ($old_url === $new_url) {
-            $this->logger->log("No URL update needed for '{$attachment->post_title}' - URLs are identical", 'debug');
+            $this->logger->log("URLs are identical, no content update needed", 'info');
             return;
         }
 
-        // Get just the paths
-        $old_path = parse_url($old_url, PHP_URL_PATH);
-        $new_path = parse_url($new_url, PHP_URL_PATH);
+        // Get all variations of the old URL
+        $old_url_variations = array($old_url);
+        $old_url_variations[] = str_replace('http://', 'https://', $old_url);
+        $old_url_variations[] = str_replace('https://', 'http://', $old_url);
+        $old_url_variations[] = htmlentities($old_url);
+        $old_url_variations[] = urlencode($old_url);
+        $old_url_variations = array_unique(array_filter($old_url_variations));
 
-        // Create all URL variations
-        $old_url_variations = array();
-        $new_url_variations = array();
+        // Get all variations of the new URL
+        $new_url_variations = array($new_url);
+        $new_url_variations[] = str_replace('http://', 'https://', $new_url);
+        $new_url_variations[] = str_replace('https://', 'http://', $new_url);
+        $new_url_variations[] = htmlentities($new_url);
+        $new_url_variations[] = urlencode($new_url);
+        $new_url_variations = array_unique(array_filter($new_url_variations));
 
-        // Add absolute URL variations for each domain
-        foreach ($domain_variations as $domain) {
-            // With port (if exists)
-            if ($site_port) {
-                // HTTPS with port
-                $old_url_variations[] = "https://{$domain}:{$site_port}{$old_path}";
-                $new_url_variations[] = "https://{$domain}:{$site_port}{$new_path}";
+        // Update post content if it contains any of the old URLs
+        if ($post->post_content) {
+            $updated_content = $post->post_content;
+            $content_updated = false;
 
-                // HTTP with port
-                $old_url_variations[] = "http://{$domain}:{$site_port}{$old_path}";
-                $new_url_variations[] = "http://{$domain}:{$site_port}{$new_path}";
-
-                // Protocol-relative with port
-                $old_url_variations[] = "//{$domain}:{$site_port}{$old_path}";
-                $new_url_variations[] = "//{$domain}:{$site_port}{$new_path}";
-            }
-
-            // Without port
-            // HTTPS without port
-            $old_url_variations[] = "https://{$domain}{$old_path}";
-            $new_url_variations[] = "https://{$domain}{$new_path}";
-
-            // HTTP without port
-            $old_url_variations[] = "http://{$domain}{$old_path}";
-            $new_url_variations[] = "http://{$domain}{$new_path}";
-
-            // Protocol-relative without port
-            $old_url_variations[] = "//{$domain}{$old_path}";
-            $new_url_variations[] = "//{$domain}{$new_path}";
-        }
-
-        // Add relative URL variations
-        $old_url_variations[] = $old_path; // root-relative
-        $new_url_variations[] = $new_path;
-
-        $old_url_variations[] = ltrim($old_path, '/'); // path-only
-        $new_url_variations[] = ltrim($new_path, '/');
-
-        // Log all variations for debugging
-        $this->logger->log("Generated URL variations for '{$attachment->post_title}':", 'info');
-        foreach ($old_url_variations as $index => $variation) {
-            $this->logger->log("  Old variation $index: $variation", 'info');
-            $this->logger->log("  New variation $index: {$new_url_variations[$index]}", 'info');
-        }
-
-        // Get all posts that might contain any version of the old URL
-        $valid_types = array_keys($this->settings->get_valid_post_types());
-        $valid_types_list = "'" . implode("','", array_map('esc_sql', $valid_types)) . "'";
-
-        // Build the query conditions for all URL variations
-        $url_conditions = array();
-        $url_params = array();
-        foreach ($old_url_variations as $variation) {
-            if (!empty($variation)) {
-                $url_conditions[] = "post_content LIKE %s";
-                $url_params[] = '%' . $wpdb->esc_like($variation) . '%';
-            }
-        }
-
-        // Add filename-based conditions
-        $filename_base = pathinfo($old_file, PATHINFO_FILENAME);
-        $filename_with_ext = pathinfo($old_file, PATHINFO_BASENAME);
-        $file_extension = pathinfo($old_file, PATHINFO_EXTENSION);
-
-        if (!empty($filename_with_ext)) {
-            $url_conditions[] = "post_content LIKE %s"; // filename with extension
-            $url_params[] = '%' . $wpdb->esc_like($filename_with_ext) . '%';
-        }
-        if (!empty($filename_base)) {
-            $url_conditions[] = "post_content LIKE %s"; // base filename
-            $url_params[] = '%' . $wpdb->esc_like($filename_base) . '%';
-            $url_conditions[] = "post_content LIKE %s"; // size variants
-            $url_params[] = '%' . $wpdb->esc_like($filename_base) . '-[0-9]*x[0-9]*.' . $file_extension . '%';
-        }
-
-        if (empty($url_conditions)) {
-            $this->logger->log("No valid URL conditions to search for", 'warning');
-            return;
-        }
-
-        // Combine all conditions
-        $where_clause = "post_type IN ($valid_types_list) AND (" . implode(" OR ", $url_conditions) . ")";
-
-        // Prepare the full query
-        $query = $wpdb->prepare(
-            "SELECT ID, post_content, post_title, post_type
-            FROM {$wpdb->posts}
-            WHERE " . $where_clause,
-            $url_params
-        );
-
-        $this->logger->log("Executing query: " . $query, 'info');
-        $posts = $wpdb->get_results($query);
-
-        if (empty($posts)) {
-            $this->logger->log("No posts found containing URLs for '{$attachment->post_title}'", 'info');
-            // Dump a sample of the post content to debug
-            $sample_post = $wpdb->get_row("SELECT ID, post_content FROM {$wpdb->posts} WHERE ID = 192314");
-            if ($sample_post) {
-                $this->logger->log("Sample post content for debugging:", 'info');
-                $this->logger->log($sample_post->post_content, 'info');
-            }
-        } else {
-            $this->logger->log("Found " . count($posts) . " posts containing URLs for '{$attachment->post_title}'", 'info');
-            foreach ($posts as $post) {
-                $updated_content = $post->post_content;
-                $this->logger->log("Processing content updates for post ID {$post->ID}:", 'info');
-
-                // Replace all URL variations
-                foreach ($old_url_variations as $index => $old_variation) {
-                    if (!empty($old_variation)) {
-                        $new_variation = $new_url_variations[$index];
+            foreach ($old_url_variations as $old_variation) {
+                foreach ($new_url_variations as $new_variation) {
+                    if (strpos($updated_content, $old_variation) !== false) {
                         $updated_content = str_replace($old_variation, $new_variation, $updated_content);
+                        $content_updated = true;
                     }
                 }
+            }
 
-                // Handle size variants
-                $metadata = wp_get_attachment_metadata($attachment_id);
-                if (!empty($metadata['sizes'])) {
-                    foreach ($metadata['sizes'] as $size => $info) {
-                        foreach ($old_url_variations as $index => $old_variation) {
-                            if (!empty($old_variation)) {
-                                $new_variation = $new_url_variations[$index];
+            if ($content_updated) {
+                $this->logger->log("Content was updated. Saving changes to post '{$post->post_title}' (ID: {$post->ID})", 'info');
+                $this->logger->log("Original content contained: " . $post->post_content, 'info');
+                $this->logger->log("Updated content contains: " . $updated_content, 'info');
 
-                                // Create size variant URLs
-                                $old_size_url = preg_replace('/\.[^.]+$/', "-{$info['width']}x{$info['height']}.$file_extension", $old_variation);
-                                $new_size_url = preg_replace('/\.[^.]+$/', "-{$info['width']}x{$info['height']}.$file_extension", $new_variation);
-
-                                if (!empty($old_size_url) && !empty($new_size_url)) {
-                                    $this->logger->log("Checking size variant:", 'info');
-                                    $this->logger->log("  From: $old_size_url", 'info');
-                                    $this->logger->log("  To: $new_size_url", 'info');
-
-                                    // Direct replacement
-                                    $updated_content = str_replace($old_size_url, $new_size_url, $updated_content);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if ($updated_content !== $post->post_content) {
-                    $this->logger->log("Content was updated. Saving changes to post '{$post->post_title}' (ID: {$post->ID})", 'info');
-                    $this->logger->log("Original content contained: " . $post->post_content, 'info');
-                    $this->logger->log("Updated content contains: " . $updated_content, 'info');
-                    wp_update_post(array(
-                        'ID' => $post->ID,
-                        'post_content' => $updated_content,
-                    ));
-                } else {
-                    $this->logger->log("No changes were made to post content", 'info');
-                }
+                // Set flag to prevent recursive save_post triggers
+                $this->is_updating_content = true;
+                wp_update_post(array(
+                    'ID' => $post->ID,
+                    'post_content' => $updated_content,
+                ));
+                $this->is_updating_content = false;
+            } else {
+                $this->logger->log("No changes were made to post content", 'info');
             }
         }
 

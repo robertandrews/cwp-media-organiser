@@ -97,20 +97,20 @@ class WP_Media_Organiser_Admin
             return;
         }
 
-        // Skip if this is a revision
-        if (wp_is_post_revision($post_id)) {
-            $this->logger->log("Skipping: This is a revision", 'debug');
-            return;
-        }
-
         // Skip auto-drafts
         if ($post->post_status === 'auto-draft') {
             $this->logger->log("Skipping: This is an auto-draft", 'debug');
             return;
         }
 
+        // Skip if we're just updating content URLs
+        if ($this->processor->is_updating_content()) {
+            $this->logger->log("Skipping: This is a content URL update", 'debug');
+            return;
+        }
+
         // Skip built-in post types that we don't want to process
-        $built_in_skip_types = array('revision', 'attachment', 'nav_menu_item', 'customize_changeset', 'custom_css');
+        $built_in_skip_types = array('attachment', 'nav_menu_item', 'customize_changeset', 'custom_css');
         if (in_array($post->post_type, $built_in_skip_types)) {
             $this->logger->log("Skipping: Post type {$post->post_type} is in skip list", 'debug');
             return;
@@ -123,10 +123,35 @@ class WP_Media_Organiser_Admin
             return;
         }
 
-        // Skip if this is an AJAX request (preview updates)
+        // More selective Ajax request handling
         if (wp_doing_ajax()) {
-            $this->logger->log("Skipping: This is an AJAX request", 'debug');
-            return;
+            // Get the current Ajax action
+            $current_action = $_REQUEST['action'] ?? '';
+
+            // List of Ajax actions to skip
+            $skip_actions = array(
+                'heartbeat',
+                'wp-remove-post-lock',
+                'wp-remove-post-autosave',
+                'wp_ajax_wp_media_organiser_preview',
+                'wp-preview',
+                'autosave',
+            );
+
+            // Check if this is a preview or autosave action
+            if (in_array($current_action, $skip_actions)) {
+                $this->logger->log("Skipping: This is a {$current_action} Ajax request", 'debug');
+                return;
+            }
+
+            // Check for post preview
+            if (isset($_POST['wp-preview']) && $_POST['wp-preview'] === 'dopreview') {
+                $this->logger->log("Skipping: This is a post preview request", 'debug');
+                return;
+            }
+
+            // If we get here, it's potentially a legitimate Ajax save
+            $this->logger->log("Processing Ajax request: {$current_action}", 'debug');
         }
 
         // Skip if this is a REST API request (Gutenberg)

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: WP Media Organiser
+ * Plugin Name: CWP Media Organiser
  * Plugin URI:
  * Description: Custom control over where media files are stored in WordPress
  * Version: 1.0.0
