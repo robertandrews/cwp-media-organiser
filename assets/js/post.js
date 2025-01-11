@@ -357,4 +357,75 @@ jQuery(document).ready(function ($) {
         console.log('Got term slug:', termSlug);
         return termSlug;
     }
+
+    // Watch for changes to the publish date fields
+    function updateDateInPath() {
+        const year = $('#aa').val();
+        const month = $('#mm').val().padStart(2, '0');
+
+        $('.path-preferred-move, .path-preferred-correct').each(function () {
+            const $path = $(this);
+            let pathHtml = $path.html();
+
+            // Update year and month in the path
+            pathHtml = pathHtml.replace(/\/\d{4}\/\d{2}\//, `/${year}/${month}/`);
+            $path.html(pathHtml);
+
+            // Trigger path comparison and status update
+            const $operation = $path.closest('.media-operation');
+            const $pathDisplay = $operation.find('.path-display');
+            const originalPath = $pathDisplay.data('original-path');
+
+            if (originalPath) {
+                const currentNormalizedPath = normalizePath($path.text());
+                const originalNormalizedPath = normalizePath(originalPath);
+                const hasChanged = currentNormalizedPath !== originalNormalizedPath;
+
+                if (hasChanged) {
+                    $operation.find('.operation-text').text('Will move to preferred path').addClass('move');
+                    $path.removeClass('path-preferred-correct').addClass('path-preferred-move');
+
+                    // Add or update wrong path
+                    let $pathWrong = $pathDisplay.find('.path-wrong');
+                    if (!$pathWrong.length) {
+                        $pathWrong = $(`<code class="path-wrong" data-media-id="${$path.data('media-id')}"><span class="dashicons dashicons-dismiss fail"></span><del>${originalPath}</del></code>`);
+                        $pathDisplay.prepend($pathWrong);
+                    }
+                } else {
+                    $operation.find('.operation-text').text('Already in correct location').removeClass('move');
+                    $path.removeClass('path-preferred-move').addClass('path-preferred-correct');
+                    $operation.find('.path-wrong').remove();
+                }
+            }
+        });
+    }
+
+    // Watch for changes to date fields
+    $('#mm, #aa').on('change', updateDateInPath);
+
+    // Watch for timestamp div visibility changes
+    const timestampObserver = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                const isVisible = $('#timestampdiv').is(':visible');
+                if (isVisible) {
+                    updateDateInPath();
+                }
+            }
+        });
+    });
+
+    timestampObserver.observe($('#timestampdiv')[0], {
+        attributes: true,
+        attributeFilter: ['style']
+    });
+
+    // Also watch for the OK button click in the timestamp div
+    $('.save-timestamp').on('click', function () {
+        // Use setTimeout to ensure the WordPress date update has completed
+        setTimeout(updateDateInPath, 100);
+    });
+
+    // Initial update for date paths
+    updateDateInPath();
 }); 

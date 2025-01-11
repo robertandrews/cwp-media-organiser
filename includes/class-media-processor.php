@@ -195,7 +195,7 @@ class WP_Media_Organiser_Processor
 
         // Add year/month structure only if WordPress setting is enabled
         if (get_option('uploads_use_yearmonth_folders')) {
-            // Use the post's date instead of the attachment's date
+            // Use the post's date for year/month structure
             $time = strtotime($post->post_date);
             $path_parts[] = date('Y', $time);
             $path_parts[] = date('m', $time);
