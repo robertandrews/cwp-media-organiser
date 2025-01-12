@@ -537,33 +537,40 @@ class WP_Media_Organiser_Processor
             return;
         }
 
-        // Get all variations of the old URL
-        $old_url_variations = array($old_url);
-        $old_url_variations[] = str_replace('http://', 'https://', $old_url);
-        $old_url_variations[] = str_replace('https://', 'http://', $old_url);
-        $old_url_variations[] = htmlentities($old_url);
-        $old_url_variations[] = urlencode($old_url);
-        $old_url_variations = array_unique(array_filter($old_url_variations));
+        // Create URL variations with format preservation
+        $old_url_variations = array();
+        $new_url_variations = array();
 
-        // Get all variations of the new URL
-        $new_url_variations = array($new_url);
-        $new_url_variations[] = str_replace('http://', 'https://', $new_url);
-        $new_url_variations[] = str_replace('https://', 'http://', $new_url);
-        $new_url_variations[] = htmlentities($new_url);
-        $new_url_variations[] = urlencode($new_url);
-        $new_url_variations = array_unique(array_filter($new_url_variations));
+        // 1. Full URLs (both http and https)
+        $old_url_variations['full_http'] = str_replace('https://', 'http://', $old_url);
+        $old_url_variations['full_https'] = str_replace('http://', 'https://', $old_url);
+        $new_url_variations['full_http'] = str_replace('https://', 'http://', $new_url);
+        $new_url_variations['full_https'] = str_replace('http://', 'https://', $new_url);
+
+        // 2. Relative to domain root
+        $old_url_variations['relative_root'] = str_replace($upload_dir['baseurl'], '', $old_url);
+        $new_url_variations['relative_root'] = str_replace($upload_dir['baseurl'], '', $new_url);
+
+        // 3. WordPress relative URLs
+        $old_url_variations['wp_relative'] = wp_make_link_relative($old_url);
+        $new_url_variations['wp_relative'] = wp_make_link_relative($new_url);
+
+        // 4. HTML entities
+        $old_url_variations['entities'] = htmlentities($old_url);
+        $new_url_variations['entities'] = htmlentities($new_url);
 
         // Update post content if it contains any of the old URLs
         if ($post->post_content) {
             $updated_content = $post->post_content;
             $content_updated = false;
 
-            foreach ($old_url_variations as $old_variation) {
-                foreach ($new_url_variations as $new_variation) {
-                    if (strpos($updated_content, $old_variation) !== false) {
-                        $updated_content = str_replace($old_variation, $new_variation, $updated_content);
-                        $content_updated = true;
-                    }
+            // First, detect which URL format is being used in the content
+            foreach ($old_url_variations as $format => $old_variation) {
+                if (strpos($updated_content, $old_variation) !== false) {
+                    // Replace with the corresponding format
+                    $updated_content = str_replace($old_variation, $new_url_variations[$format], $updated_content);
+                    $content_updated = true;
+                    $this->logger->log("Found and replaced URL in format: $format", 'info');
                 }
             }
 
@@ -587,10 +594,10 @@ class WP_Media_Organiser_Processor
         // Also update any serialized metadata that might contain the URL
         $meta_conditions = array();
         $meta_params = array();
-        foreach ($old_url_variations as $variation) {
-            if (!empty($variation)) {
+        foreach ($old_url_variations as $old_variation) {
+            if (!empty($old_variation)) {
                 $meta_conditions[] = "meta_value LIKE %s";
-                $meta_params[] = '%' . $wpdb->esc_like($variation) . '%';
+                $meta_params[] = '%' . $wpdb->esc_like($old_variation) . '%';
             }
         }
 
@@ -609,9 +616,9 @@ class WP_Media_Organiser_Processor
                 foreach ($meta_rows as $meta) {
                     $updated_value = $meta->meta_value;
 
-                    foreach ($old_url_variations as $index => $old_variation) {
+                    foreach ($old_url_variations as $format => $old_variation) {
                         if (!empty($old_variation)) {
-                            $new_variation = $new_url_variations[$index];
+                            $new_variation = $new_url_variations[$format];
                             $updated_value = $this->update_serialized_url($updated_value, $old_variation, $new_variation);
                         }
                     }
