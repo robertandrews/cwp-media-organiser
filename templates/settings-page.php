@@ -1,7 +1,7 @@
 <?php
-if (!defined('WPINC')) {
-    die;
-}
+    if (! defined('WPINC')) {
+        die;
+    }
 ?>
 <div class="wrap wp-media-organiser-settings">
     <h1><?php _e('Media Organiser Settings', 'wp-media-organiser'); ?></h1>
@@ -9,7 +9,7 @@ if (!defined('WPINC')) {
     <div class="wp-media-organiser-preview">
         <p><?php _e('Preview of media file path:', 'wp-media-organiser'); ?></p>
         <code>/wp-content/uploads/<?php
-if ($template_data['use_post_type']): ?><span class="path-component path-post-type">{post}</span>/<?php endif;
+                                  if ($template_data['use_post_type']): ?><span class="path-component path-post-type">{post}</span>/<?php endif;
 if ($template_data['taxonomy_name']): ?><span class="path-component path-taxonomy"><?php echo esc_html($template_data['taxonomy_name']); ?></span>/<span class="path-component path-term">{term_slug}</span>/<?php endif;
 if (get_option('uploads_use_yearmonth_folders')): ?>{YYYY}/{MM}/<?php endif;
 if ($template_data['post_identifier'] === 'slug'): ?><span class="path-component path-post-identifier">{post-slug}</span>/<?php
@@ -26,7 +26,7 @@ elseif ($template_data['post_identifier'] === 'id'): ?><span class="path-compone
                     <label for="use_post_type"><?php _e('Include Post Type', 'wp-media-organiser'); ?></label>
                 </th>
                 <td>
-                    <input type="checkbox" id="use_post_type" name="use_post_type" value="1" <?php checked($template_data['use_post_type'], '1'); ?>>
+                    <input type="checkbox" id="use_post_type" name="use_post_type" value="1"                                                                                             <?php checked($template_data['use_post_type'], '1'); ?>>
                     <p class="description"><?php _e('Include the post type in the file path', 'wp-media-organiser'); ?></p>
                 </td>
             </tr>
@@ -39,7 +39,7 @@ elseif ($template_data['post_identifier'] === 'id'): ?><span class="path-compone
                     <select id="taxonomy_name" name="taxonomy_name">
                         <option value=""><?php _e('None', 'wp-media-organiser'); ?></option>
                         <?php foreach ($template_data['available_taxonomies'] as $tax_name => $tax_label): ?>
-                            <option value="<?php echo esc_attr($tax_name); ?>" <?php selected($template_data['taxonomy_name'], $tax_name); ?>>
+                            <option value="<?php echo esc_attr($tax_name); ?>"<?php selected($template_data['taxonomy_name'], $tax_name); ?>>
                                 <?php echo esc_html($tax_label); ?>
                             </option>
                         <?php endforeach; ?>
@@ -55,12 +55,12 @@ elseif ($template_data['post_identifier'] === 'id'): ?><span class="path-compone
                 <td>
                     <p class="description">
                         <?php
-printf(
-    __('Date-based folders (YYYY/MM) are controlled in %sMedia Settings%s', 'wp-media-organiser'),
-    '<a href="' . admin_url('options-media.php') . '">',
-    '</a>'
-);
-?>
+                            printf(
+                                __('Date-based folders (YYYY/MM) are controlled in %sMedia Settings%s', 'wp-media-organiser'),
+                                '<a href="' . admin_url('options-media.php') . '">',
+                                '</a>'
+                            );
+                        ?>
                     </p>
                 </td>
             </tr>
@@ -71,11 +71,21 @@ printf(
                 </th>
                 <td>
                     <select id="post_identifier" name="post_identifier">
-                        <option value="none" <?php selected($template_data['post_identifier'], 'none'); ?>><?php _e('None', 'wp-media-organiser'); ?></option>
-                        <option value="slug" <?php selected($template_data['post_identifier'], 'slug'); ?>><?php _e('Post Slug', 'wp-media-organiser'); ?></option>
-                        <option value="id" <?php selected($template_data['post_identifier'], 'id'); ?>><?php _e('Post ID', 'wp-media-organiser'); ?></option>
+                        <option value="none"                                             <?php selected($template_data['post_identifier'], 'none'); ?>><?php _e('None', 'wp-media-organiser'); ?></option>
+                        <option value="slug"                                             <?php selected($template_data['post_identifier'], 'slug'); ?>><?php _e('Post Slug', 'wp-media-organiser'); ?></option>
+                        <option value="id"                                           <?php selected($template_data['post_identifier'], 'id'); ?>><?php _e('Post ID', 'wp-media-organiser'); ?></option>
                     </select>
                     <p class="description"><?php _e('Choose how to identify the post in the file path', 'wp-media-organiser'); ?></p>
+                </td>
+            </tr>
+
+            <tr>
+                <th scope="row">
+                    <label for="localize_remote_media"><?php _e('Remote Media', 'wp-media-organiser'); ?></label>
+                </th>
+                <td>
+                    <input type="checkbox" id="localize_remote_media" name="localize_remote_media" value="1"                                                                                                             <?php checked($template_data['localize_remote_media'], '1'); ?>>
+                    <p class="description"><?php _e('Automatically download and import remote media (e.g., images from external URLs) into the WordPress media library', 'wp-media-organiser'); ?></p>
                 </td>
             </tr>
 
@@ -85,14 +95,14 @@ printf(
                 </th>
                 <td>
                     <?php
-$log_levels = explode(',', $template_data['log_levels']);
-$available_levels = array(
-    'DEBUG' => __('Debug - Most detailed level', 'wp-media-organiser'),
-    'INFO' => __('Info - General operations', 'wp-media-organiser'),
-    'WARNING' => __('Warning - Important notices', 'wp-media-organiser'),
-    'ERROR' => __('Error - Critical issues', 'wp-media-organiser'),
-);
-foreach ($available_levels as $level => $description): ?>
+                        $log_levels       = explode(',', $template_data['log_levels']);
+                        $available_levels = [
+                            'DEBUG'   => __('Debug - Most detailed level', 'wp-media-organiser'),
+                            'INFO'    => __('Info - General operations', 'wp-media-organiser'),
+                            'WARNING' => __('Warning - Important notices', 'wp-media-organiser'),
+                            'ERROR'   => __('Error - Critical issues', 'wp-media-organiser'),
+                        ];
+                    foreach ($available_levels as $level => $description): ?>
                         <label style="display: block; margin-bottom: 8px;">
                             <input type="checkbox"
                                    name="log_levels[]"

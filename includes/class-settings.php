@@ -3,7 +3,7 @@
  * Settings functionality
  */
 
-if (!defined('WPINC')) {
+if (! defined('WPINC')) {
     die;
 }
 
@@ -17,13 +17,13 @@ class WP_Media_Organiser_Settings
     public function __construct($settings_table, $plugin_path, $plugin_url)
     {
         $this->settings_table = $settings_table;
-        $this->plugin_path = $plugin_path;
-        $this->plugin_url = $plugin_url;
-        $this->logger = WP_Media_Organiser_Logger::get_instance();
+        $this->plugin_path    = $plugin_path;
+        $this->plugin_url     = $plugin_url;
+        $this->logger         = WP_Media_Organiser_Logger::get_instance();
 
-        add_action('admin_menu', array($this, 'add_admin_menu'));
-        add_action('admin_init', array($this, 'register_settings'));
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+        add_action('admin_menu', [$this, 'add_admin_menu']);
+        add_action('admin_init', [$this, 'register_settings']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
     }
 
     public function get_setting($name)
@@ -46,11 +46,11 @@ class WP_Media_Organiser_Settings
 
         $result = $wpdb->replace(
             $this->settings_table,
-            array(
-                'setting_name' => $name,
+            [
+                'setting_name'  => $name,
                 'setting_value' => $value,
-            ),
-            array('%s', '%s')
+            ],
+            ['%s', '%s']
         );
 
         if ($result === false) {
@@ -63,15 +63,15 @@ class WP_Media_Organiser_Settings
     public function get_valid_post_types()
     {
         // Get all post types
-        $post_types = get_post_types(array('public' => true), 'objects');
+        $post_types = get_post_types(['public' => true], 'objects');
 
         // Add 'page' explicitly if not already included
-        if (!isset($post_types['page'])) {
+        if (! isset($post_types['page'])) {
             $post_types['page'] = get_post_type_object('page');
         }
 
         // Built-in types to exclude
-        $exclude_types = array(
+        $exclude_types = [
             'attachment',
             'revision',
             'nav_menu_item',
@@ -80,7 +80,7 @@ class WP_Media_Organiser_Settings
             'oembed_cache',
             'user_request',
             'wp_block',
-        );
+        ];
 
         // Filter out unwanted post types
         foreach ($exclude_types as $exclude) {
@@ -88,7 +88,7 @@ class WP_Media_Organiser_Settings
         }
 
         // Convert to simple array of labels
-        $formatted_types = array();
+        $formatted_types = [];
         foreach ($post_types as $type) {
             $formatted_types[$type->name] = $type->label;
         }
@@ -104,7 +104,7 @@ class WP_Media_Organiser_Settings
             __('Media Organiser', 'wp-media-organiser'),
             'manage_options',
             'wp-media-organiser',
-            array($this, 'render_settings_page')
+            [$this, 'render_settings_page']
         );
     }
 
@@ -122,21 +122,21 @@ class WP_Media_Organiser_Settings
         wp_enqueue_style(
             'wp-media-organiser-notice',
             $this->plugin_url . 'assets/css/notice.css',
-            array(),
+            [],
             filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/notice.css')
         );
 
         wp_enqueue_style(
             'wp-media-organiser-admin',
             $this->plugin_url . 'assets/css/admin.css',
-            array('wp-media-organiser-notice'),
+            ['wp-media-organiser-notice'],
             '1.0.0'
         );
 
         wp_enqueue_script(
             'wp-media-organiser-admin',
             $this->plugin_url . 'assets/js/admin.js',
-            array('jquery'),
+            ['jquery'],
             '1.0.0',
             true
         );
@@ -148,17 +148,17 @@ class WP_Media_Organiser_Settings
         wp_localize_script(
             'wp-media-organiser-admin',
             'wpMediaOrganiser',
-            array(
-                'postTypes' => $post_types,
+            [
+                'postTypes'           => $post_types,
                 'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
-                'uploadsPath' => str_replace(site_url(), '', wp_get_upload_dir()['baseurl']),
-            )
+                'uploadsPath'         => str_replace(site_url(), '', wp_get_upload_dir()['baseurl']),
+            ]
         );
     }
 
     public function render_settings_page()
     {
-        if (!current_user_can('manage_options')) {
+        if (! current_user_can('manage_options')) {
             return;
         }
 
@@ -171,30 +171,32 @@ class WP_Media_Organiser_Settings
             $this->logger->log("Taxonomy value submitted: $taxonomy_value", 'debug');
 
             // Handle log levels
-            $log_levels = isset($_POST['log_levels']) ? $_POST['log_levels'] : array();
+            $log_levels = isset($_POST['log_levels']) ? $_POST['log_levels'] : [];
             $log_levels = array_map('sanitize_text_field', $log_levels);
             $log_levels = array_filter($log_levels, function ($level) {
-                return in_array($level, array('DEBUG', 'INFO', 'WARNING', 'ERROR'));
+                return in_array($level, ['DEBUG', 'INFO', 'WARNING', 'ERROR']);
             });
             $this->update_setting('log_levels', implode(',', $log_levels));
 
             $this->update_setting('use_post_type', isset($_POST['use_post_type']) ? '1' : '0');
             $this->update_setting('taxonomy_name', $taxonomy_value);
             $this->update_setting('post_identifier', sanitize_text_field($_POST['post_identifier']));
+            $this->update_setting('localize_remote_media', isset($_POST['localize_remote_media']) ? '1' : '0');
 
             $this->logger->log("Settings saved successfully", 'info');
             echo '<div class="notice notice-success"><p>' . __('Settings saved.', 'wp-media-organiser') . '</p></div>';
         }
 
         // Get current settings
-        $use_post_type = $this->get_setting('use_post_type');
-        $taxonomy_name = $this->get_setting('taxonomy_name');
-        $post_identifier = $this->get_setting('post_identifier');
-        $log_levels = $this->get_setting('log_levels');
+        $use_post_type         = $this->get_setting('use_post_type');
+        $taxonomy_name         = $this->get_setting('taxonomy_name');
+        $post_identifier       = $this->get_setting('post_identifier');
+        $log_levels            = $this->get_setting('log_levels');
+        $localize_remote_media = $this->get_setting('localize_remote_media');
 
         // Get available taxonomies
-        $taxonomies = get_taxonomies(array('public' => true), 'objects');
-        $available_taxonomies = array();
+        $taxonomies           = get_taxonomies(['public' => true], 'objects');
+        $available_taxonomies = [];
         foreach ($taxonomies as $tax) {
             $available_taxonomies[$tax->name] = $tax->label;
         }
@@ -218,14 +220,15 @@ class WP_Media_Organiser_Settings
         $preview_path .= 'image.jpg';
 
         // Add the data to the template
-        $template_data = array(
-            'preview_path' => $preview_path,
-            'use_post_type' => $use_post_type,
-            'taxonomy_name' => $taxonomy_name,
-            'post_identifier' => $post_identifier,
-            'available_taxonomies' => $available_taxonomies,
-            'log_levels' => $log_levels,
-        );
+        $template_data = [
+            'preview_path'          => $preview_path,
+            'use_post_type'         => $use_post_type,
+            'taxonomy_name'         => $taxonomy_name,
+            'post_identifier'       => $post_identifier,
+            'available_taxonomies'  => $available_taxonomies,
+            'log_levels'            => $log_levels,
+            'localize_remote_media' => $localize_remote_media,
+        ];
 
         include $this->plugin_path . 'templates/settings-page.php';
     }

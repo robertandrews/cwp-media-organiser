@@ -136,11 +136,142 @@ class WP_Media_Organiser_Processor
                 $attachment_id = attachment_url_to_postid($url);
                 if ($attachment_id) {
                     $media_files[$attachment_id] = get_attached_file($attachment_id);
+                } elseif ($this->is_remote_url($url) && $this->settings->get_setting('localize_remote_media') === '1') {
+                    // Handle remote URL only if the setting is enabled
+                    $this->logger->log("Found remote URL: $url", 'info');
+                    $new_attachment_id = $this->import_remote_media($url, $post_id);
+                    if ($new_attachment_id) {
+                        $media_files[$new_attachment_id] = get_attached_file($new_attachment_id);
+                        // Update post content with new URL
+                        $this->update_content_url($post_id, $url, wp_get_attachment_url($new_attachment_id));
+                    }
                 }
             }
         }
 
         return $media_files;
+    }
+
+    /**
+     * Check if a URL is truly remote (not just absolute)
+     *
+     * @param string $url The URL to check
+     * @return bool True if the URL is remote, false otherwise
+     */
+    private function is_remote_url($url)
+    {
+        // Get the site URL and home URL
+        $site_url   = trailingslashit(site_url());
+        $home_url   = trailingslashit(home_url());
+        $upload_url = trailingslashit(wp_upload_dir()['baseurl']);
+
+        // Check if the URL starts with any of our local URLs
+        $is_local = (
+            strpos($url, $site_url) === 0 ||
+            strpos($url, $home_url) === 0 ||
+            strpos($url, $upload_url) === 0 ||
+            strpos($url, '/') === 0// Relative URLs
+        );
+
+        return ! $is_local && filter_var($url, FILTER_VALIDATE_URL) !== false;
+    }
+
+    /**
+     * Import remote media into the WordPress media library
+     *
+     * @param string $url The remote URL
+     * @param int $post_id The post ID to attach the media to
+     * @return int|false The new attachment ID or false on failure
+     */
+    private function import_remote_media($url, $post_id)
+    {
+        $this->logger->log("Attempting to import remote media from URL: $url", 'info');
+
+        // Get the file
+        $temp_file = download_url($url);
+        if (is_wp_error($temp_file)) {
+            $this->logger->log("Failed to download remote media: " . $temp_file->get_error_message(), 'error');
+            return false;
+        }
+
+        // Get the file name and type
+        $file_name = basename(parse_url($url, PHP_URL_PATH));
+        $file_type = wp_check_filetype($file_name);
+
+        if (empty($file_type['type'])) {
+            @unlink($temp_file);
+            $this->logger->log("Could not determine file type for URL: $url", 'error');
+            return false;
+        }
+
+        // Prepare the file array
+        $file = [
+            'name'     => $file_name,
+            'type'     => $file_type['type'],
+            'tmp_name' => $temp_file,
+            'error'    => 0,
+            'size'     => filesize($temp_file),
+        ];
+
+        // Move the temporary file into the uploads directory
+        $attachment = media_handle_sideload($file, $post_id);
+
+        // Clean up
+        @unlink($temp_file);
+
+        if (is_wp_error($attachment)) {
+            $this->logger->log("Failed to import remote media: " . $attachment->get_error_message(), 'error');
+            return false;
+        }
+
+        $this->logger->log("Successfully imported remote media. New attachment ID: $attachment", 'info');
+        return $attachment;
+    }
+
+    /**
+     * Update post content with new media URL
+     *
+     * @param int $post_id The post ID
+     * @param string $old_url The old URL
+     * @param string $new_url The new URL
+     * @return bool True on success, false on failure
+     */
+    private function update_content_url($post_id, $old_url, $new_url)
+    {
+        $post = get_post($post_id);
+        if (! $post) {
+            return false;
+        }
+
+        $this->logger->log("Updating content URL in post $post_id", 'info');
+        $this->logger->log("  From: $old_url", 'info');
+        $this->logger->log("  To: $new_url", 'info');
+
+        // Prevent recursive processing
+        $this->is_updating_content = true;
+
+        // Update the content
+        $new_content = str_replace($old_url, $new_url, $post->post_content);
+
+        if ($new_content !== $post->post_content) {
+            $update_result = wp_update_post([
+                'ID'           => $post_id,
+                'post_content' => $new_content,
+            ]);
+
+            $this->is_updating_content = false;
+
+            if (is_wp_error($update_result)) {
+                $this->logger->log("Failed to update post content: " . $update_result->get_error_message(), 'error');
+                return false;
+            }
+
+            $this->logger->log("Successfully updated post content with new URL", 'info');
+            return true;
+        }
+
+        $this->is_updating_content = false;
+        return false;
     }
 
     /**

@@ -20,6 +20,7 @@ to:
 - **Custom Folder Structure**: Create meaningful hierarchies using post types, taxonomies, and custom identifiers
 - **Real-time Preview**: See how your media will be organized before making changes
 - **Bulk Operations**: Easily reorganize multiple posts' media files at once
+- **Remote Media Localization**: Automatically downloads and imports remote media (e.g., external images) into your WordPress media library
 
 ## Installation
 
@@ -35,6 +36,7 @@ to:
    - Enable/disable post type folders
    - Select a taxonomy for organization (optional)
    - Choose between post slug or ID for folder names
+   - Enable/disable automatic remote media localization
 3. Save your settings
 
 ## File Organization Structure
@@ -113,6 +115,17 @@ Yes, you can enable/disable components and choose between different identifiers 
 ### Will this break my media links?
 
 No, WordPress automatically handles media URLs regardless of their file location.
+
+### What happens to remote media files?
+
+When remote media localization is enabled, the plugin will:
+1. Detect external media URLs in your posts (e.g., images hosted on other servers)
+2. Download these files to your server
+3. Import them into your WordPress media library
+4. Update your post content to use the local copies
+5. Organize them according to your configured folder structure
+
+This helps you maintain control over your media files and ensures they're properly organized within your WordPress installation.
 
 ## Database Changes
 
