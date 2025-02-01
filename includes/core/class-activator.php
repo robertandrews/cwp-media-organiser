@@ -28,6 +28,7 @@ class WP_Media_Organiser_Activator
             'use_post_type' => '1',
             'taxonomy_name' => '',
             'post_identifier' => 'slug',
+            'log_levels' => 'ERROR,WARNING',
         );
 
         foreach ($default_settings as $name => $value) {

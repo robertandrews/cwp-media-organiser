@@ -18,9 +18,13 @@ class WP_Media_Organiser_Logger
         'WARNING' => 2,
         'ERROR' => 3,
     );
+    private $settings_table;
 
     private function __construct()
     {
+        global $wpdb;
+        $this->settings_table = $wpdb->prefix . 'media_organiser_settings';
+
         // Get plugin directory path
         $plugin_dir = plugin_dir_path(dirname(__FILE__));
         $this->log_file = $plugin_dir . 'wp-media-organiser.log';
@@ -55,8 +59,17 @@ class WP_Media_Organiser_Logger
     {
         $type = strtoupper($type);
 
-        // Check if this log level should be recorded
-        if (!isset($this->levels[$type]) || $this->levels[$type] < $this->min_level) {
+        // Get enabled log levels from settings
+        global $wpdb;
+        $query = $wpdb->prepare(
+            "SELECT setting_value FROM {$this->settings_table} WHERE setting_name = %s",
+            'log_levels'
+        );
+        $enabled_levels = $wpdb->get_var($query);
+        $enabled_levels = $enabled_levels ? explode(',', $enabled_levels) : array('ERROR', 'WARNING');
+
+        // Check if this log level is enabled
+        if (!in_array($type, $enabled_levels)) {
             return;
         }
 

@@ -170,6 +170,14 @@ class WP_Media_Organiser_Settings
             $this->logger->log("Saving settings from form submission", 'info');
             $this->logger->log("Taxonomy value submitted: $taxonomy_value", 'debug');
 
+            // Handle log levels
+            $log_levels = isset($_POST['log_levels']) ? $_POST['log_levels'] : array();
+            $log_levels = array_map('sanitize_text_field', $log_levels);
+            $log_levels = array_filter($log_levels, function ($level) {
+                return in_array($level, array('DEBUG', 'INFO', 'WARNING', 'ERROR'));
+            });
+            $this->update_setting('log_levels', implode(',', $log_levels));
+
             $this->update_setting('use_post_type', isset($_POST['use_post_type']) ? '1' : '0');
             $this->update_setting('taxonomy_name', $taxonomy_value);
             $this->update_setting('post_identifier', sanitize_text_field($_POST['post_identifier']));
@@ -182,6 +190,7 @@ class WP_Media_Organiser_Settings
         $use_post_type = $this->get_setting('use_post_type');
         $taxonomy_name = $this->get_setting('taxonomy_name');
         $post_identifier = $this->get_setting('post_identifier');
+        $log_levels = $this->get_setting('log_levels');
 
         // Get available taxonomies
         $taxonomies = get_taxonomies(array('public' => true), 'objects');
@@ -215,6 +224,7 @@ class WP_Media_Organiser_Settings
             'taxonomy_name' => $taxonomy_name,
             'post_identifier' => $post_identifier,
             'available_taxonomies' => $available_taxonomies,
+            'log_levels' => $log_levels,
         );
 
         include $this->plugin_path . 'templates/settings-page.php';

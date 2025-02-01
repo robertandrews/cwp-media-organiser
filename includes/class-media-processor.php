@@ -3,7 +3,7 @@
  * Media processing functionality
  */
 
-if (!defined('WPINC')) {
+if (! defined('WPINC')) {
     die;
 }
 
@@ -11,13 +11,13 @@ class WP_Media_Organiser_Processor
 {
     private $logger;
     private $settings;
-    private $is_processing = false;
+    private $is_processing             = false;
     private $should_handle_wp_suffixes = false; // Control whether to handle WordPress numeric suffixes
-    private $is_updating_content = false; // Flag to prevent recursive save_post triggers
+    private $is_updating_content       = false; // Flag to prevent recursive save_post triggers
 
     public function __construct($settings)
     {
-        $this->logger = WP_Media_Organiser_Logger::get_instance();
+        $this->logger   = WP_Media_Organiser_Logger::get_instance();
         $this->settings = $settings;
     }
 
@@ -39,7 +39,7 @@ class WP_Media_Organiser_Processor
         }
 
         // Log the call stack to identify where this is being called from
-        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        $backtrace  = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
         $call_stack = array_map(function ($trace) {
             return isset($trace['class'])
             ? $trace['class'] . '::' . $trace['function']
@@ -57,7 +57,7 @@ class WP_Media_Organiser_Processor
 
         // Skip if not a valid post type
         $valid_types = array_keys($this->settings->get_valid_post_types());
-        if (!in_array($post->post_type, $valid_types)) {
+        if (! in_array($post->post_type, $valid_types)) {
             $this->logger->log("Skipping media reorganization - post type '{$post->post_type}' not supported", 'debug');
             return;
         }
@@ -79,8 +79,8 @@ class WP_Media_Organiser_Processor
 
             foreach ($media_files as $attachment_id => $file) {
                 $attachment = get_post($attachment_id);
-                $new_path = $this->get_new_file_path($attachment_id, $post_id);
-                if (!$new_path) {
+                $new_path   = $this->get_new_file_path($attachment_id, $post_id);
+                if (! $new_path) {
                     $this->logger->log("Cannot generate new path for media file: '{$attachment->post_title}' (ID: $attachment_id)", 'info');
                     continue;
                 }
@@ -109,7 +109,7 @@ class WP_Media_Organiser_Processor
      */
     public function get_post_media_files($post_id)
     {
-        $media_files = array();
+        $media_files = [];
 
         // Get attached media
         $attachments = get_attached_media('', $post_id);
@@ -124,14 +124,14 @@ class WP_Media_Organiser_Processor
         }
 
         // Get media from post content
-        $post = get_post($post_id);
+        $post    = get_post($post_id);
         $content = $post->post_content;
 
         // Regular expression to find media URLs in content
         $pattern = '/<(?:img|video|audio|embed|object)[^>]*?src=[\'"](.*?)[\'"][^>]*?>/i';
         preg_match_all($pattern, $content, $matches);
 
-        if (!empty($matches[1])) {
+        if (! empty($matches[1])) {
             foreach ($matches[1] as $url) {
                 $attachment_id = attachment_url_to_postid($url);
                 if ($attachment_id) {
@@ -155,8 +155,8 @@ class WP_Media_Organiser_Processor
     public function get_new_file_path($attachment_id, $post_id, $temp_post = null, $context = 'move')
     {
         $upload_dir = wp_upload_dir();
-        $file_info = pathinfo(get_attached_file($attachment_id));
-        $post = $temp_post ?: get_post($post_id);
+        $file_info  = pathinfo(get_attached_file($attachment_id));
+        $post       = $temp_post ?: get_post($post_id);
 
         // Only log details for actual moves, not previews
         if ($context === 'move') {
@@ -168,7 +168,7 @@ class WP_Media_Organiser_Processor
             $this->logger->log("Post type: " . $post->post_type, 'info');
         }
 
-        $path_parts = array();
+        $path_parts = [];
 
         // Add post type if enabled
         if ($this->settings->get_setting('use_post_type') === '1' && $post && isset($post->post_type)) {
@@ -183,9 +183,9 @@ class WP_Media_Organiser_Processor
         $taxonomy_name = $this->settings->get_setting('taxonomy_name');
         if ($taxonomy_name) {
             $terms = get_the_terms($post_id, $taxonomy_name);
-            if ($terms && !is_wp_error($terms) && !empty($terms)) {
+            if ($terms && ! is_wp_error($terms) && ! empty($terms)) {
                 $term = reset($terms);
-                if (!empty($term->slug)) {
+                if (! empty($term->slug)) {
                     // Only add taxonomy components if we have a valid term
                     $path_parts[] = $taxonomy_name;
                     $path_parts[] = $term->slug;
@@ -196,7 +196,7 @@ class WP_Media_Organiser_Processor
         // Add year/month structure only if WordPress setting is enabled
         if (get_option('uploads_use_yearmonth_folders')) {
             // Use the post's date for year/month structure
-            $time = strtotime($post->post_date);
+            $time         = strtotime($post->post_date);
             $path_parts[] = date('Y', $time);
             $path_parts[] = date('m', $time);
         }
@@ -216,7 +216,7 @@ class WP_Media_Organiser_Processor
                     $this->logger->log("Generated temporary slug from title: " . $slug, 'info');
                 }
             }
-            if (!empty($slug)) {
+            if (! empty($slug)) {
                 $path_parts[] = $slug;
                 if ($context === 'move') {
                     $this->logger->log("Added slug to path parts: " . $slug, 'info');
@@ -235,7 +235,7 @@ class WP_Media_Organiser_Processor
         }
 
         // Combine parts
-        $path = implode('/', array_filter($path_parts));
+        $path       = implode('/', array_filter($path_parts));
         $target_dir = trailingslashit($upload_dir['basedir']) . $path;
 
         // Get original filename without numeric suffix if enabled
@@ -272,7 +272,7 @@ class WP_Media_Organiser_Processor
         $this->logger->log("  New filename: " . basename($new_file), 'info');
 
         // Check source and destination paths
-        if (!file_exists($old_file)) {
+        if (! file_exists($old_file)) {
             $this->logger->log("Source file does not exist at '$old_file', checking if already moved", 'info');
             if (file_exists($new_file)) {
                 $this->logger->log("File already exists at destination '$new_file', assuming already moved", 'info');
@@ -318,7 +318,7 @@ class WP_Media_Organiser_Processor
 
         // Create the directory if it doesn't exist
         $new_dir = dirname($new_file);
-        if (!file_exists($new_dir)) {
+        if (! file_exists($new_dir)) {
             wp_mkdir_p($new_dir);
         }
 
@@ -345,8 +345,8 @@ class WP_Media_Organiser_Processor
 
             // Update _wp_attachment_metadata
             $metadata = wp_get_attachment_metadata($attachment_id);
-            if (!is_array($metadata)) {
-                $metadata = array();
+            if (! is_array($metadata)) {
+                $metadata = [];
                 $this->logger->log("Creating new metadata array as none existed", 'info');
             }
 
@@ -361,15 +361,13 @@ class WP_Media_Organiser_Processor
             $old_dir = dirname($old_file);
 
             // Handle size variants
-            if (isset($metadata['sizes'])) {
-                $old_dir = dirname($old_file);
-                $new_dir = dirname($new_file);
+            if (isset($metadata['sizes']) && is_array($metadata['sizes'])) {
                 $this->logger->log("Moving and updating size variants:", 'info');
 
                 // Check for and move original (pre-scaled) image if it exists
                 if (isset($metadata['original_image'])) {
-                    $old_original_path = $old_dir . '/' . $metadata['original_image'];
-                    $new_original_path = $new_dir . '/' . $metadata['original_image'];
+                    $old_original_path = trailingslashit($old_dir) . $metadata['original_image'];
+                    $new_original_path = trailingslashit($new_dir) . $metadata['original_image'];
 
                     $this->logger->log("Original (pre-scaled) image found:", 'info');
                     $this->logger->log("  Moving from: $old_original_path", 'info');
@@ -386,22 +384,34 @@ class WP_Media_Organiser_Processor
                     }
                 }
 
-                foreach ($metadata['sizes'] as $size => $sizeinfo) {
-                    $old_size_path = $old_dir . '/' . $sizeinfo['file'];
-                    $new_size_path = $new_dir . '/' . $sizeinfo['file'];
+                // Track which files we've already moved to handle duplicates
+                $processed_files = [];
 
+                foreach ($metadata['sizes'] as $size => $size_info) {
                     $this->logger->log("  Size variant '$size':", 'info');
+
+                    // Skip if this exact file has already been processed
+                    if (isset($processed_files[$size_info['file']])) {
+                        $this->logger->log("    ↳ Skipping duplicate size variant (already processed with '{$processed_files[$size_info['file']]}')", 'info');
+                        continue;
+                    }
+
+                    $old_size_path = trailingslashit($old_dir) . $size_info['file'];
+                    $new_size_path = trailingslashit($new_dir) . $size_info['file'];
+
                     $this->logger->log("    Moving from: $old_size_path", 'info');
                     $this->logger->log("    Moving to: $new_size_path", 'info');
 
-                    if (file_exists($old_size_path)) {
-                        if (@rename($old_size_path, $new_size_path)) {
-                            $this->logger->log("    ✓ Successfully moved size variant", 'info');
-                        } else {
-                            $this->logger->log("    ✗ Failed to move size variant", 'error');
-                        }
+                    if (! file_exists($old_size_path)) {
+                        $this->logger->log("    ↳ Size variant file not found at source (may be a duplicate reference)", 'info');
+                        continue;
+                    }
+
+                    if (@rename($old_size_path, $new_size_path)) {
+                        $this->logger->log("    ✓ Successfully moved size variant", 'info');
+                        $processed_files[$size_info['file']] = $size; // Track that we've processed this file
                     } else {
-                        $this->logger->log("    ! Size variant file not found at source", 'warning');
+                        $this->logger->log("    ✗ Failed to move size variant", 'error');
                     }
                 }
             }
@@ -455,7 +465,7 @@ class WP_Media_Organiser_Processor
     {
         // Don't delete the uploads base directory
         $upload_dir = wp_upload_dir();
-        $base_dir = rtrim($upload_dir['basedir'], '/');
+        $base_dir   = rtrim($upload_dir['basedir'], '/');
 
         // Normalize the paths for comparison
         $dir_path = rtrim($dir_path, '/');
@@ -468,17 +478,17 @@ class WP_Media_Organiser_Processor
         }
 
         // Check if directory exists and is readable
-        if (!is_dir($dir_path)) {
+        if (! is_dir($dir_path)) {
             $this->logger->log("Directory does not exist: $dir_path", 'debug');
             return false;
         }
-        if (!is_readable($dir_path)) {
+        if (! is_readable($dir_path)) {
             $this->logger->log("Directory is not readable: $dir_path", 'debug');
             return false;
         }
 
         // Get all files in directory
-        $files = array_diff(scandir($dir_path), array('.', '..'));
+        $files = array_diff(scandir($dir_path), ['.', '..']);
         $this->logger->log("Directory contents (" . count($files) . " items): " . print_r($files, true), 'debug');
 
         // If directory is empty
@@ -486,7 +496,7 @@ class WP_Media_Organiser_Processor
             $this->logger->log("Found empty directory: $dir_path", 'info');
 
             // Check if directory is writable
-            if (!is_writable($dir_path)) {
+            if (! is_writable($dir_path)) {
                 $this->logger->log("Directory is not writable: $dir_path", 'error');
                 return false;
             }
@@ -519,17 +529,17 @@ class WP_Media_Organiser_Processor
         global $wpdb;
 
         $attachment = get_post($attachment_id);
-        $post = get_post($attachment->post_parent);
+        $post       = get_post($attachment->post_parent);
 
-        if (!$post) {
+        if (! $post) {
             $this->logger->log("No parent post found for attachment ID: $attachment_id", 'info');
             return;
         }
 
         // Get the old and new URLs
         $upload_dir = wp_upload_dir();
-        $old_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
-        $new_url = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
+        $old_url    = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $old_file);
+        $new_url    = str_replace($upload_dir['basedir'], $upload_dir['baseurl'], $new_file);
 
         // Skip if URLs are the same
         if ($old_url === $new_url) {
@@ -538,13 +548,13 @@ class WP_Media_Organiser_Processor
         }
 
         // Create URL variations with format preservation
-        $old_url_variations = array();
-        $new_url_variations = array();
+        $old_url_variations = [];
+        $new_url_variations = [];
 
         // 1. Full URLs (both http and https)
-        $old_url_variations['full_http'] = str_replace('https://', 'http://', $old_url);
+        $old_url_variations['full_http']  = str_replace('https://', 'http://', $old_url);
         $old_url_variations['full_https'] = str_replace('http://', 'https://', $old_url);
-        $new_url_variations['full_http'] = str_replace('https://', 'http://', $new_url);
+        $new_url_variations['full_http']  = str_replace('https://', 'http://', $new_url);
         $new_url_variations['full_https'] = str_replace('http://', 'https://', $new_url);
 
         // 2. Relative to domain root
@@ -581,10 +591,10 @@ class WP_Media_Organiser_Processor
 
                 // Set flag to prevent recursive save_post triggers
                 $this->is_updating_content = true;
-                wp_update_post(array(
-                    'ID' => $post->ID,
+                wp_update_post([
+                    'ID'           => $post->ID,
                     'post_content' => $updated_content,
-                ));
+                ]);
                 $this->is_updating_content = false;
             } else {
                 $this->logger->log("No changes were made to post content", 'info');
@@ -592,16 +602,16 @@ class WP_Media_Organiser_Processor
         }
 
         // Also update any serialized metadata that might contain the URL
-        $meta_conditions = array();
-        $meta_params = array();
+        $meta_conditions = [];
+        $meta_params     = [];
         foreach ($old_url_variations as $old_variation) {
-            if (!empty($old_variation)) {
+            if (! empty($old_variation)) {
                 $meta_conditions[] = "meta_value LIKE %s";
-                $meta_params[] = '%' . $wpdb->esc_like($old_variation) . '%';
+                $meta_params[]     = '%' . $wpdb->esc_like($old_variation) . '%';
             }
         }
 
-        if (!empty($meta_conditions)) {
+        if (! empty($meta_conditions)) {
             $meta_query = $wpdb->prepare(
                 "SELECT post_id, meta_key, meta_value
                 FROM {$wpdb->postmeta}
@@ -610,14 +620,14 @@ class WP_Media_Organiser_Processor
             );
 
             $meta_rows = $wpdb->get_results($meta_query);
-            if (!empty($meta_rows)) {
+            if (! empty($meta_rows)) {
                 $this->logger->log("Found " . count($meta_rows) . " meta entries containing URLs for '{$attachment->post_title}'", 'info');
 
                 foreach ($meta_rows as $meta) {
                     $updated_value = $meta->meta_value;
 
                     foreach ($old_url_variations as $format => $old_variation) {
-                        if (!empty($old_variation)) {
+                        if (! empty($old_variation)) {
                             $new_variation = $new_url_variations[$format];
                             $updated_value = $this->update_serialized_url($updated_value, $old_variation, $new_variation);
                         }
@@ -635,7 +645,7 @@ class WP_Media_Organiser_Processor
     {
         if (is_serialized($data)) {
             $unserialized = unserialize($data);
-            $updated = $this->replace_urls_recursive($unserialized, $old_url, $new_url);
+            $updated      = $this->replace_urls_recursive($unserialized, $old_url, $new_url);
             return serialize($updated);
         }
         return str_replace($old_url, $new_url, $data);
@@ -661,14 +671,14 @@ class WP_Media_Organiser_Processor
      */
     public function bulk_reorganize_media($post_ids)
     {
-        $results = array(
-            'success' => 0,
-            'skipped' => 0,
-            'failed' => 0,
+        $results = [
+            'success'           => 0,
+            'skipped'           => 0,
+            'failed'            => 0,
             'already_organized' => 0,
-            'messages' => array(),
-            'post_messages' => array(),
-        );
+            'messages'          => [],
+            'post_messages'     => [],
+        ];
 
         if (empty($post_ids)) {
             $results['messages'][] = "No posts selected for media reorganization.";
@@ -677,32 +687,32 @@ class WP_Media_Organiser_Processor
 
         foreach ($post_ids as $post_id) {
             $post = get_post($post_id);
-            if (!$post) {
+            if (! $post) {
                 $results['failed']++;
                 $results['messages'][] = "Post ID $post_id not found.";
                 continue;
             }
 
             try {
-                $media_files = $this->get_post_media_files($post_id);
-                $files_moved = false;
-                $post_message = array(
+                $media_files  = $this->get_post_media_files($post_id);
+                $files_moved  = false;
+                $post_message = [
                     'title' => sprintf('Post ID %d: "%s" (%d media items)',
                         $post_id,
                         $post->post_title,
                         count($media_files)
                     ),
-                    'items' => array(),
-                );
+                    'items' => [],
+                ];
 
                 $this->logger->log("Starting media reorganization for post: '{$post->post_title}' (ID: $post_id)", 'info');
                 $this->logger->log("Found " . count($media_files) . " media files associated with post '{$post->post_title}'", 'info');
 
                 foreach ($media_files as $attachment_id => $file) {
                     $attachment = get_post($attachment_id);
-                    $new_path = $this->get_new_file_path($attachment_id, $post_id, $post);
+                    $new_path   = $this->get_new_file_path($attachment_id, $post_id, $post);
 
-                    if (!$new_path) {
+                    if (! $new_path) {
                         $results['skipped']++;
                         $post_message['items'][] = sprintf(
                             'Media ID %d ("%s"): Cannot generate new path',
@@ -714,7 +724,7 @@ class WP_Media_Organiser_Processor
 
                     // Normalize paths for comparison
                     $normalized_new_path = str_replace('\\', '/', $new_path);
-                    $normalized_file = str_replace('\\', '/', $file);
+                    $normalized_file     = str_replace('\\', '/', $file);
 
                     if (strtolower($normalized_new_path) === strtolower($normalized_file)) {
                         $results['already_organized']++;
@@ -758,10 +768,10 @@ class WP_Media_Organiser_Processor
 
             } catch (Exception $e) {
                 $results['failed']++;
-                $post_message = array(
+                $post_message = [
                     'title' => sprintf('Post ID %d: "%s"', $post_id, $post->post_title),
-                    'items' => array(sprintf('Error: %s', $e->getMessage())),
-                );
+                    'items' => [sprintf('Error: %s', $e->getMessage())],
+                ];
                 $results['post_messages'][] = $post_message;
             }
         }
@@ -779,21 +789,21 @@ class WP_Media_Organiser_Processor
     {
         $media_files = $this->get_post_media_files($post_id);
         if (empty($media_files)) {
-            return array();
+            return [];
         }
 
-        $post = get_post($post_id);
-        $preview_data = array();
+        $post         = get_post($post_id);
+        $preview_data = [];
 
         foreach ($media_files as $attachment_id => $current_path) {
             $preferred_path = $this->get_new_file_path($attachment_id, $post_id, null, 'preview');
 
             // Normalize paths for comparison
-            $normalized_current = $this->normalize_path($current_path);
+            $normalized_current   = $this->normalize_path($current_path);
             $normalized_preferred = $this->normalize_path($preferred_path);
 
             // Extract path components
-            $path_components = array();
+            $path_components = [];
 
             // Add post type if enabled
             if ($this->settings->get_setting('use_post_type') === '1' && $post && isset($post->post_type)) {
@@ -805,19 +815,19 @@ class WP_Media_Organiser_Processor
 
             // Add taxonomy and term if enabled
             $taxonomy_name = $this->settings->get_setting('taxonomy_name');
-            if (!empty($taxonomy_name)) {
+            if (! empty($taxonomy_name)) {
                 $terms = wp_get_post_terms($post_id, $taxonomy_name);
-                if (!empty($terms) && !is_wp_error($terms)) {
+                if (! empty($terms) && ! is_wp_error($terms)) {
                     $path_components['taxonomy'] = $taxonomy_name;
-                    $path_components['term'] = $terms[0]->slug;
+                    $path_components['term']     = $terms[0]->slug;
                 }
             }
 
             // Add year/month
             $post_date = get_post_time('Y-m', false, $post_id);
             if ($post_date) {
-                list($year, $month) = explode('-', $post_date);
-                $path_components['year'] = $year;
+                list($year, $month)       = explode('-', $post_date);
+                $path_components['year']  = $year;
                 $path_components['month'] = $month;
             }
 
@@ -832,12 +842,12 @@ class WP_Media_Organiser_Processor
             // Get filename
             $path_components['filename'] = basename($preferred_path);
 
-            $preview_data[] = array_merge(array(
-                'id' => $attachment_id,
-                'current_path' => $current_path,
+            $preview_data[] = array_merge([
+                'id'             => $attachment_id,
+                'current_path'   => $current_path,
                 'preferred_path' => $preferred_path,
-                'status' => $normalized_current === $normalized_preferred ? 'correct' : 'will_move',
-            ), $path_components);
+                'status'         => $normalized_current === $normalized_preferred ? 'correct' : 'will_move',
+            ], $path_components);
         }
 
         return $preview_data;
@@ -874,11 +884,11 @@ class WP_Media_Organiser_Processor
     private function handle_filename_suffix($basename, $target_dir, $attachment_id)
     {
         if (preg_match('/^(.+)-\d+(\.[^.]+)$/', $basename, $matches)) {
-            $original_name = $matches[1] . $matches[2];
+            $original_name  = $matches[1] . $matches[2];
             $potential_path = $target_dir . '/' . $original_name;
 
             // Check if we can use the original filename (no conflict)
-            if (!file_exists($potential_path) || realpath($potential_path) === realpath(get_attached_file($attachment_id))) {
+            if (! file_exists($potential_path) || realpath($potential_path) === realpath(get_attached_file($attachment_id))) {
                 return $original_name;
             }
         }
