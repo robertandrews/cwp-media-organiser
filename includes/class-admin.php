@@ -3,7 +3,7 @@
  * Admin functionality for WP Media Organiser
  */
 
-if (!defined('WPINC')) {
+if (! defined('WPINC')) {
     die;
 }
 
@@ -23,9 +23,9 @@ class WP_Media_Organiser_Admin
         if (null === self::$instance) {
             // Get dependencies from initializer
             $initializer = WP_Media_Organiser_Initializer::get_instance();
-            $settings = $initializer->get_settings();
-            $processor = new WP_Media_Organiser_Processor($settings);
-            $plugin_url = plugin_dir_url(dirname(__FILE__));
+            $settings    = $initializer->get_settings();
+            $processor   = new WP_Media_Organiser_Processor($settings);
+            $plugin_url  = plugin_dir_url(dirname(__FILE__));
 
             self::$instance = new self($plugin_url, $settings, $processor);
         }
@@ -34,33 +34,36 @@ class WP_Media_Organiser_Admin
 
     private function __construct($plugin_url, $settings, $processor)
     {
-        $this->plugin_url = $plugin_url;
-        $this->settings = $settings;
-        $this->processor = $processor;
-        $this->logger = WP_Media_Organiser_Logger::get_instance();
+        $this->plugin_url     = $plugin_url;
+        $this->settings       = $settings;
+        $this->processor      = $processor;
+        $this->logger         = WP_Media_Organiser_Logger::get_instance();
         $this->notice_manager = CWP_Media_Organiser_Notice_Manager::get_instance();
 
         // Add bulk actions
-        add_filter('bulk_actions-edit-post', array($this, 'register_bulk_actions'));
-        add_filter('bulk_actions-edit-page', array($this, 'register_bulk_actions'));
-        add_filter('handle_bulk_actions-edit-post', array($this, 'handle_bulk_action'), 10, 3);
-        add_filter('handle_bulk_actions-edit-page', array($this, 'handle_bulk_action'), 10, 3);
+        add_filter('bulk_actions-edit-post', [$this, 'register_bulk_actions']);
+        add_filter('bulk_actions-edit-page', [$this, 'register_bulk_actions']);
+        add_filter('handle_bulk_actions-edit-post', [$this, 'handle_bulk_action'], 10, 3);
+        add_filter('handle_bulk_actions-edit-page', [$this, 'handle_bulk_action'], 10, 3);
 
         // Handle media reorganization on legitimate post saves
-        add_action('save_post', array($this, 'handle_save_post'), 10, 3);
+        add_action('save_post', [$this, 'handle_save_post'], 10, 3);
 
         // Add AJAX handlers
-        add_action('wp_ajax_wp_media_organiser_preview', array($this, 'ajax_get_preview_paths'));
-        add_action('wp_ajax_wp_media_organiser_get_term_slug', array($this, 'ajax_get_term_slug'));
-        add_action('wp_ajax_wp_media_organiser_get_term_by_name', array($this, 'ajax_get_term_by_name'));
+        add_action('wp_ajax_wp_media_organiser_preview', [$this, 'ajax_get_preview_paths']);
+        add_action('wp_ajax_wp_media_organiser_get_term_slug', [$this, 'ajax_get_term_slug']);
+        add_action('wp_ajax_wp_media_organiser_get_term_by_name', [$this, 'ajax_get_term_by_name']);
 
         // Add admin scripts
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
+
+        // Handle post deletion
+        add_action('before_delete_post', [$this, 'handle_post_deletion'], 10, 1);
     }
 
     private function log_save_post_debug($post_id, $post, $update)
     {
-        if (!WP_DEBUG) {
+        if (! WP_DEBUG) {
             return;
         }
 
@@ -78,8 +81,8 @@ class WP_Media_Organiser_Admin
         $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
         foreach ($backtrace as $index => $trace) {
             $caller = isset($trace['class']) ? "{$trace['class']}::{$trace['function']}" : $trace['function'];
-            $file = isset($trace['file']) ? basename($trace['file']) : 'unknown';
-            $line = isset($trace['line']) ? $trace['line'] : 'unknown';
+            $file   = isset($trace['file']) ? basename($trace['file']) : 'unknown';
+            $line   = isset($trace['line']) ? $trace['line'] : 'unknown';
             $this->logger->log("  #{$index} {$caller} in {$file}:{$line}", 'debug');
         }
     }
@@ -110,7 +113,7 @@ class WP_Media_Organiser_Admin
         }
 
         // Skip built-in post types that we don't want to process
-        $built_in_skip_types = array('attachment', 'nav_menu_item', 'customize_changeset', 'custom_css');
+        $built_in_skip_types = ['attachment', 'nav_menu_item', 'customize_changeset', 'custom_css'];
         if (in_array($post->post_type, $built_in_skip_types)) {
             $this->logger->log("Skipping: Post type {$post->post_type} is in skip list", 'debug');
             return;
@@ -118,7 +121,7 @@ class WP_Media_Organiser_Admin
 
         // Skip if not a valid post type
         $valid_types = array_keys($this->settings->get_valid_post_types());
-        if (!in_array($post->post_type, $valid_types)) {
+        if (! in_array($post->post_type, $valid_types)) {
             $this->logger->log("Skipping: Post type {$post->post_type} is not in valid types list", 'debug');
             return;
         }
@@ -129,14 +132,14 @@ class WP_Media_Organiser_Admin
             $current_action = $_REQUEST['action'] ?? '';
 
             // List of Ajax actions to skip
-            $skip_actions = array(
+            $skip_actions = [
                 'heartbeat',
                 'wp-remove-post-lock',
                 'wp-remove-post-autosave',
                 'wp_ajax_wp_media_organiser_preview',
                 'wp-preview',
                 'autosave',
-            );
+            ];
 
             // Check if this is a preview or autosave action
             if (in_array($current_action, $skip_actions)) {
@@ -162,12 +165,12 @@ class WP_Media_Organiser_Admin
 
         // Skip if this is a post update without actual content changes or taxonomy changes
         if ($update) {
-            $old_post = get_post($post_id);
+            $old_post      = get_post($post_id);
             $taxonomy_name = $this->settings->get_setting('taxonomy_name');
 
             // Get old and new terms
-            $old_terms = $taxonomy_name ? get_the_terms($post_id, $taxonomy_name) : array();
-            $old_term_id = $old_terms && !is_wp_error($old_terms) ? reset($old_terms)->term_id : 0;
+            $old_terms   = $taxonomy_name ? get_the_terms($post_id, $taxonomy_name) : [];
+            $old_term_id = $old_terms && ! is_wp_error($old_terms) ? reset($old_terms)->term_id : 0;
 
             // Check if anything relevant has changed
             if ($old_post &&
@@ -184,7 +187,7 @@ class WP_Media_Organiser_Admin
         $this->logger->log("=== Proceeding with media reorganization ===", 'debug');
 
         // Process the media reorganization
-        $results = $this->processor->bulk_reorganize_media(array($post_id));
+        $results = $this->processor->bulk_reorganize_media([$post_id]);
 
         // Store results in a transient specific to this post
         set_transient('wp_media_organiser_post_' . $post_id, $results, 30);
@@ -228,14 +231,14 @@ class WP_Media_Organiser_Admin
         $this->logger->log("  Failed: {$results['failed']}", 'debug');
         $this->logger->log("  Skipped: {$results['skipped']}", 'debug');
 
-        $redirect_to = add_query_arg(array(
+        $redirect_to = add_query_arg([
             'bulk_reorganize_media' => '1',
-            'processed' => count($post_ids),
-            'success' => $results['success'],
-            'already_organized' => $results['already_organized'],
-            'failed' => $results['failed'],
-            'skipped' => $results['skipped'],
-        ), $redirect_to);
+            'processed'             => count($post_ids),
+            'success'               => $results['success'],
+            'already_organized'     => $results['already_organized'],
+            'failed'                => $results['failed'],
+            'skipped'               => $results['skipped'],
+        ], $redirect_to);
 
         // Store messages in transient for display
         set_transient('wp_media_organiser_bulk_messages', $results['post_messages'], 30);
@@ -256,13 +259,13 @@ class WP_Media_Organiser_Admin
         check_ajax_referer('wp_media_organiser_preview', 'nonce');
 
         $post_id = intval($_POST['post_id']);
-        if (!$post_id) {
+        if (! $post_id) {
             $this->logger->log("Invalid post ID provided", 'error');
             wp_send_json_error('Invalid post ID');
         }
 
         $post = get_post($post_id);
-        if (!$post) {
+        if (! $post) {
             $this->logger->log("Post not found for ID: $post_id", 'error');
             wp_send_json_error('Post not found');
         }
@@ -274,7 +277,7 @@ class WP_Media_Organiser_Admin
 
         // If a post slug was provided and slug is used as identifier
         if (isset($_POST['post_slug']) && $this->settings->get_setting('post_identifier') === 'slug') {
-            $old_slug = $temp_post->post_name;
+            $old_slug             = $temp_post->post_name;
             $temp_post->post_name = sanitize_title($_POST['post_slug']);
             $this->logger->log("Updated post slug for preview from '$old_slug' to '{$temp_post->post_name}'", 'debug');
         }
@@ -285,12 +288,12 @@ class WP_Media_Organiser_Admin
             $this->logger->log("Processing taxonomy: $taxonomy_name", 'debug');
 
             if (isset($_POST['taxonomy_term'])) {
-                $old_terms = get_the_terms($post_id, $taxonomy_name);
-                $old_term_id = $old_terms && !is_wp_error($old_terms) ? reset($old_terms)->term_id : 0;
+                $old_terms   = get_the_terms($post_id, $taxonomy_name);
+                $old_term_id = $old_terms && ! is_wp_error($old_terms) ? reset($old_terms)->term_id : 0;
 
                 if ($_POST['taxonomy_term'] === '') {
                     $this->logger->log("Clearing taxonomy terms for preview", 'debug');
-                    wp_set_object_terms($post_id, array(), $taxonomy_name);
+                    wp_set_object_terms($post_id, [], $taxonomy_name);
                 } elseif (is_numeric($_POST['taxonomy_term'])) {
                     $new_term_id = intval($_POST['taxonomy_term']);
                     $this->logger->log("Updating taxonomy term for preview from $old_term_id to $new_term_id", 'debug');
@@ -311,7 +314,7 @@ class WP_Media_Organiser_Admin
 
         // Enhance preview data with additional media information
         foreach ($preview_data as &$item) {
-            $item['title'] = get_the_title($item['id']);
+            $item['title']         = get_the_title($item['id']);
             $item['thumbnail_url'] = wp_get_attachment_image_url($item['id'], 'thumbnail');
             $this->logger->log("Added preview data for media ID {$item['id']}: {$item['title']}", 'debug');
         }
@@ -328,17 +331,17 @@ class WP_Media_Organiser_Admin
         check_ajax_referer('wp_media_organiser_preview', 'nonce');
 
         $term_id = intval($_POST['term_id']);
-        if (!$term_id) {
+        if (! $term_id) {
             wp_send_json_error('Invalid term ID');
         }
 
         $taxonomy = $this->settings->get_setting('taxonomy_name');
-        if (!$taxonomy) {
+        if (! $taxonomy) {
             wp_send_json_error('No taxonomy configured');
         }
 
         $term = get_term($term_id, $taxonomy);
-        if (!$term || is_wp_error($term)) {
+        if (! $term || is_wp_error($term)) {
             wp_send_json_error('Term not found');
         }
 
@@ -353,30 +356,30 @@ class WP_Media_Organiser_Admin
         check_ajax_referer('wp_media_organiser_preview', 'nonce');
 
         $term_name = sanitize_text_field($_POST['term_name']);
-        if (!$term_name) {
+        if (! $term_name) {
             wp_send_json_error('Invalid term name');
         }
 
         $taxonomy = sanitize_text_field($_POST['taxonomy']);
-        if (!$taxonomy) {
+        if (! $taxonomy) {
             wp_send_json_error('No taxonomy provided');
         }
 
         // Try to get the term by name
         $term = get_term_by('name', $term_name, $taxonomy);
-        if (!$term || is_wp_error($term)) {
+        if (! $term || is_wp_error($term)) {
             // If not found by name, try by slug
             $term = get_term_by('slug', sanitize_title($term_name), $taxonomy);
-            if (!$term || is_wp_error($term)) {
+            if (! $term || is_wp_error($term)) {
                 wp_send_json_error('Term not found');
             }
         }
 
-        wp_send_json_success(array(
-            'id' => $term->term_id,
+        wp_send_json_success([
+            'id'   => $term->term_id,
             'name' => $term->name,
             'slug' => $term->slug,
-        ));
+        ]);
     }
 
     /**
@@ -386,21 +389,21 @@ class WP_Media_Organiser_Admin
     {
         // Enqueue on settings page
         if ($hook === 'settings_page_wp-media-organiser') {
-            wp_enqueue_style('wp-media-organiser-admin', plugin_dir_url(dirname(__FILE__)) . 'assets/css/admin.css', array(), '1.0.0');
-            wp_enqueue_script('wp-media-organiser-admin', plugin_dir_url(dirname(__FILE__)) . 'assets/js/admin.js', array('jquery'), '1.0.0', true);
+            wp_enqueue_style('wp-media-organiser-admin', plugin_dir_url(dirname(__FILE__)) . 'assets/css/admin.css', [], '1.0.0');
+            wp_enqueue_script('wp-media-organiser-admin', plugin_dir_url(dirname(__FILE__)) . 'assets/js/admin.js', ['jquery'], '1.0.0', true);
 
             // Pass data to admin.js
-            wp_localize_script('wp-media-organiser-admin', 'wpMediaOrganiser', array(
-                'uploadsPath' => '/wp-content/uploads',
+            wp_localize_script('wp-media-organiser-admin', 'wpMediaOrganiser', [
+                'uploadsPath'         => '/wp-content/uploads',
                 'useYearMonthFolders' => get_option('uploads_use_yearmonth_folders'),
-                'postTypes' => $this->settings->get_valid_post_types(),
-            ));
+                'postTypes'           => $this->settings->get_valid_post_types(),
+            ]);
         }
 
         // Enqueue on post edit page
         if ($hook === 'post.php' || $hook === 'post-new.php') {
             // First enqueue the notice CSS
-            wp_enqueue_style('wp-media-organiser-notice', plugin_dir_url(dirname(__FILE__)) . 'assets/css/notice.css', array(), '1.0.0');
+            wp_enqueue_style('wp-media-organiser-notice', plugin_dir_url(dirname(__FILE__)) . 'assets/css/notice.css', [], '1.0.0');
 
             // Then enqueue Underscore.js as a dependency
             wp_enqueue_script('underscore');
@@ -409,20 +412,20 @@ class WP_Media_Organiser_Admin
             wp_enqueue_script(
                 'wp-media-organiser-post',
                 plugin_dir_url(dirname(__FILE__)) . 'assets/js/post.js',
-                array('jquery', 'underscore'),
+                ['jquery', 'underscore'],
                 filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/js/post.js'),
                 true
             );
 
             // Pass settings and nonce to post.js
-            wp_localize_script('wp-media-organiser-post', 'wpMediaOrganiser', array(
-                'settings' => array(
-                    'taxonomyName' => $this->settings->get_setting('taxonomy_name'),
+            wp_localize_script('wp-media-organiser-post', 'wpMediaOrganiser', [
+                'settings' => [
+                    'taxonomyName'   => $this->settings->get_setting('taxonomy_name'),
                     'postIdentifier' => $this->settings->get_setting('post_identifier'),
-                ),
-                'nonce' => wp_create_nonce('wp_media_organiser_preview'),
-                'ajaxurl' => admin_url('admin-ajax.php'),
-            ));
+                ],
+                'nonce'    => wp_create_nonce('wp_media_organiser_preview'),
+                'ajaxurl'  => admin_url('admin-ajax.php'),
+            ]);
 
             // Add debug info
             if (WP_DEBUG) {
@@ -431,5 +434,93 @@ class WP_Media_Organiser_Admin
                 $this->logger->log("Post Identifier: " . $this->settings->get_setting('post_identifier'), 'debug');
             }
         }
+    }
+
+    /**
+     * Handle media cleanup when a post is permanently deleted
+     */
+    public function handle_post_deletion($post_id)
+    {
+        $post = get_post($post_id);
+
+        if (! $post) {
+            return;
+        }
+
+        // Skip if not a valid post type
+        $valid_types = array_keys($this->settings->get_valid_post_types());
+        if (! in_array($post->post_type, $valid_types)) {
+            $this->logger->log("Skipping media cleanup - post type '{$post->post_type}' not supported", 'debug');
+            return;
+        }
+
+        $this->logger->log("Starting media cleanup for deleted post: '{$post->post_title}' (ID: $post_id)", 'info');
+
+        // Get all media files associated with this post
+        $media_files = $this->processor->get_post_media_files($post_id);
+        $this->logger->log("Found " . count($media_files) . " media files associated with post '{$post->post_title}'", 'info');
+
+        foreach ($media_files as $attachment_id => $file) {
+            $attachment = get_post($attachment_id);
+            if (! $attachment) {
+                continue;
+            }
+
+            // Check if this attachment is used by other posts
+            $used_by_others = false;
+
+            // Check posts that have this media in their content
+            global $wpdb;
+            $like_pattern      = '%' . $wpdb->esc_like(wp_get_attachment_url($attachment_id)) . '%';
+            $posts_using_media = $wpdb->get_col($wpdb->prepare(
+                "SELECT ID FROM $wpdb->posts
+                WHERE ID != %d
+                AND post_status != 'trash'
+                AND post_type IN ('" . implode("','", $valid_types) . "')
+                AND post_content LIKE %s",
+                $post_id,
+                $like_pattern
+            ));
+
+            // Check if it's used as featured image
+            $posts_with_thumbnail = $wpdb->get_col($wpdb->prepare(
+                "SELECT post_id FROM $wpdb->postmeta
+                WHERE meta_key = '_thumbnail_id'
+                AND meta_value = %d
+                AND post_id != %d",
+                $attachment_id,
+                $post_id
+            ));
+
+            // Check if it's directly attached to other posts
+            $other_parents = $wpdb->get_col($wpdb->prepare(
+                "SELECT post_parent FROM $wpdb->posts
+                WHERE ID = %d
+                AND post_parent != %d
+                AND post_parent != 0",
+                $attachment_id,
+                $post_id
+            ));
+
+            if (! empty($posts_using_media) || ! empty($posts_with_thumbnail) || ! empty($other_parents)) {
+                $used_by_others = true;
+                $this->logger->log("Media file '{$attachment->post_title}' (ID: $attachment_id) is used by other posts - skipping deletion", 'info');
+                continue;
+            }
+
+            // If not used by others, delete the attachment
+            $this->logger->log("Deleting unused media file '{$attachment->post_title}' (ID: $attachment_id)", 'info');
+
+            // Get the directory before deleting the attachment
+            $file_dir = dirname($file);
+
+            // Delete the attachment (this will also delete the files)
+            wp_delete_attachment($attachment_id, true);
+
+            // Clean up empty directories
+            $this->processor->cleanup_empty_directory($file_dir);
+        }
+
+        $this->logger->log("Completed media cleanup for deleted post: '{$post->post_title}' (ID: $post_id)", 'info');
     }
 }

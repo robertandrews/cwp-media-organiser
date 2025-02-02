@@ -592,7 +592,7 @@ class WP_Media_Organiser_Processor
      * @param string $dir_path Path to the directory to check and potentially delete
      * @return bool True if directory was deleted, false otherwise
      */
-    private function cleanup_empty_directory($dir_path)
+    public function cleanup_empty_directory($dir_path)
     {
         // Don't delete the uploads base directory
         $upload_dir = wp_upload_dir();
